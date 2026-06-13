@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AZOTH_mem — AI 伴侣的活体记忆系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --card-bg: #ffffff;
+    --text: #111111;
+    --accent: #0a22f5;
+    --accent-rgb: 10, 34, 245;
+    --highlight: #8898f9;
+    --muted: #6b7280;
+    --border: #dbe0fa;
+    --tag-bg: #eef0ff;
+    --tag-text: #0a22f5;
+    --danger: #ff003c;
+    --mystery-1: #dbe0fa;
+    --mystery-2: #c4ccf7;
+  }
+
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Layout ── */
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 48px 24px 64px;
+  }
+
+  /* ── Header ── */
+  .header {
+    margin-bottom: 48px;
+  }
+
+  .header-title {
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-title .glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px; height: 44px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .header-sub {
+    font-size: 1.05rem;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 400;
+  }
+
+  .header-tagline {
+    font-size: 0.92rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+    border-left: 2px solid var(--accent);
+    padding-left: 12px;
+    margin-top: 14px;
+    font-weight: 500;
+  }
+
+  /* ── Grid ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: 1fr; }
+    .header-title { font-size: 1.6rem; }
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 18px;
+    position: relative;
+    transition: border-color 0.25s ease, transform 0.2s ease;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .card-icon {
+    font-size: 1.5rem;
+    margin-bottom: 12px;
+    display: block;
+    width: 32px; height: 32px;
+    line-height: 32px;
+    text-align: center;
+  }
+
+  .card-title {
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.76rem;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 3px;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .tag.green  { background: #e8f5e9; color: #2e7d32; }
+  .tag.amber  { background: #fff8e1; color: #e65100; }
+  .tag.rose   { background: #fce4ec; color: #c62828; }
+  .tag.gray   { background: #f0f0f0; color: #555; }
+
+  /* ── Cognitive Layers ── */
+  .layers-section {
+    margin-bottom: 40px;
+  }
+
+  .section-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .layer-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .layer-row {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    gap: 14px;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.2s;
+  }
+
+  .layer-row:last-child { border-bottom: none; }
+  .layer-row:hover { background: #fafbff; }
+
+  .layer-row.mem-zone {
+    background: rgba(var(--accent-rgb), 0.03);
+    border-left: 3px solid var(--accent);
+  }
+
+  .layer-depth {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .layer-name {
+    font-weight: 600;
+    color: var(--text);
+    min-width: 140px;
+    flex-shrink: 0;
+  }
+
+  .layer-source {
+    font-weight: 400;
+    color: var(--muted);
+    flex-shrink: 0;
+    width: 80px;
+  }
+
+  .layer-desc {
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .divider-row {
+    padding: 6px 20px;
+    font-size: 0.75rem;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    background: rgba(var(--accent-rgb), 0.04);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Dual Layer ── */
+  .dual-layer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 640px) {
+    .dual-layer { grid-template-columns: 1fr; }
+  }
+
+  .dual-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px 20px;
+    transition: border-color 0.25s;
+  }
+
+  .dual-card:hover { border-color: var(--accent); }
+
+  .dual-card .dc-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .dual-card .dc-icon {
+    font-size: 1.1rem;
+  }
+
+  .dual-card .dc-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .dual-card .dc-subtitle {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-weight: 400;
+    margin-left: auto;
+  }
+
+  .dc-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 0.82rem;
+    border-bottom: 1px dashed var(--border);
+  }
+
+  .dc-row:last-child { border-bottom: none; }
+
+  .dc-row .dc-label { color: var(--muted); font-weight: 400; }
+  .dc-row .dc-value { font-weight: 500; text-align: right; max-width: 55%; }
+
+  /* ── Footer ── */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-stack {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .footer-stats {
+    display: flex; gap: 28px;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-num {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: -0.03em;
+  }
+
+  .stat-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 500;
+  }
+
+  /* ── Credits ── */
+  .credits {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .credits-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
+  }
+
+  .credits-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .credit-tag {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+    font-weight: 400;
+  }
+
+  .credit-tag:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-title">
+      <span class="glyph">A</span>
+      AZOTH_mem
+    </div>
+    <div class="header-sub">AI 伴侣的活体记忆系统 — 让你的 AI 拥有有生命状态的长期心智</div>
+    <div class="header-sub">多角色/人格原生 · sql.js + bge-small-zh · MIT 开源</div>
+    <div class="header-tagline">分离"想起"和"证明"，用热度给记忆一条代谢曲线，用四个正交维度给每条记忆一个生命坐标。</div>
+  </div>
+
+  <!-- Feature Grid -->
+  <div class="section-label">核心模块</div>
+  <div class="grid">
+
+    <div class="card">
+      <span class="card-icon">◎</span>
+      <div class="card-title">双层记忆体</div>
+      <div class="card-tags">
+        <span class="tag">浓缩层 memory_index</span>
+        <span class="tag">证据层 Obsidian</span>
+        <span class="tag">memory_links</span>
+        <span class="tag green">想起 ≠ 证明</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">△</span>
+      <div class="card-title">热度代谢系统</div>
+      <div class="card-tags">
+        <span class="tag">指数衰减</span>
+        <span class="tag">半衰期延长</span>
+        <span class="tag">arousal 增益</span>
+        <span class="tag amber">冷启动保护</span>
+        <span class="tag">在场 ≠ 被想起</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⬡</span>
+      <div class="card-title">四维生命坐标</div>
+      <div class="card-tags">
+        <span class="tag">pinned 通道</span>
+        <span class="tag">resolved 事态</span>
+        <span class="tag">archive 可见性</span>
+        <span class="tag">importance 分量</span>
+        <span class="tag green">正交不覆盖</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⊞</span>
+      <div class="card-title">记忆工作台</div>
+      <div class="card-tags">
+        <span class="tag">正文编辑+重向量化</span>
+        <span class="tag">状态即点即生效</span>
+        <span class="tag">情绪坐标滑杆</span>
+        <span class="tag">staging 审核箱</span>
+        <span class="tag amber">批量归档</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⊕</span>
+      <div class="card-title">证据锚定 Obsidian</div>
+      <div class="card-tags">
+        <span class="tag">azoth_doc_id 身份</span>
+        <span class="tag">BFS vault 扫描</span>
+        <span class="tag">失联检测不删行</span>
+        <span class="tag green">三档注入</span>
+        <span class="tag">path · snippet · full</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⊘</span>
+      <div class="card-title">相似合并</div>
+      <div class="card-tags">
+        <span class="tag">cos + bigram Jaccard</span>
+        <span class="tag">并查集成簇</span>
+        <span class="tag rose">绝不自动合并</span>
+        <span class="tag">absorbed 归档可回溯</span>
+        <span class="tag">merged_into 链</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⊡</span>
+      <div class="card-title">多角色/人格原生</div>
+      <div class="card-tags">
+        <span class="tag">character_id 隔离</span>
+        <span class="tag">shared 公共池</span>
+        <span class="tag">per-char vault</span>
+        <span class="tag">per-char pinned</span>
+        <span class="tag green">空间可见性</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <span class="card-icon">⊿</span>
+      <div class="card-title">文件蒸馏导入</div>
+      <div class="card-tags">
+        <span class="tag">副模型抽 ≤5 条候选</span>
+        <span class="tag">全套标签自动生成</span>
+        <span class="tag amber">staging 人审</span>
+        <span class="tag">整篇直存 / 蒸馏</span>
+        <span class="tag">上传进证据层</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Cognitive Layers -->
+  <div class="section-label">认知全景 — 记忆在 prompt 组装链的位置</div>
+  <div class="layer-stack">
+    <div class="layer-row">
+      <span class="layer-depth">L1</span>
+      <span class="layer-name">人设 persona</span>
+      <span class="layer-source tag gray">人写</span>
+      <span class="layer-desc">"我是谁" — 角色/人格身份，极少变</span>
+    </div>
+    <div class="layer-row">
+      <span class="layer-depth">L2</span>
+      <span class="layer-name">世界书 worldbook</span>
+      <span class="layer-source tag gray">人写</span>
+      <span class="layer-desc">"世界是什么样的" — 关键词触发的知识条目</span>
+    </div>
+    <div class="divider-row">↓ 以下是记忆系统的范围 ↓</div>
+    <div class="layer-row mem-zone">
+      <span class="layer-depth">L3</span>
+      <span class="layer-name">工作记忆</span>
+      <span class="layer-source tag green">自动</span>
+      <span class="layer-desc">"我们刚聊了什么" — 前端 longTermMemory，跨窗口 reference 挂载</span>
+    </div>
+    <div class="layer-row mem-zone">
+      <span class="layer-depth">L4</span>
+      <span class="layer-name">长期记忆</span>
+      <span class="layer-source tag green">自动</span>
+      <span class="layer-desc">"我们经历过什么" — 后端 memory_index，向量检索 + 热度 + 证据</span>
+    </div>
+  </div>
+
+  <div style="height: 28px;"></div>
+
+  <!-- Dual Layer -->
+  <div class="section-label">双层记忆分工 — 副模型总结时同时双写</div>
+  <div class="dual-layer">
+    <div class="dual-card">
+      <div class="dc-header">
+        <span class="dc-icon">◇</span>
+        <span class="dc-title">longTermMemory</span>
+        <span class="dc-subtitle">工作记忆 · 前端</span>
+      </div>
+      <div class="dc-row"><span class="dc-label">存在哪</span><span class="dc-value">IndexedDB，跟窗口走</span></div>
+      <div class="dc-row"><span class="dc-label">格式</span><span class="dc-value">纯文本条目</span></div>
+      <div class="dc-row"><span class="dc-label">注入</span><span class="dc-value">最近 N 条直接塞 prompt</span></div>
+      <div class="dc-row"><span class="dc-label">跨窗口</span><span class="dc-value">reference 挂载源窗口</span></div>
+      <div class="dc-row"><span class="dc-label">解决</span><span class="dc-value">"我们刚聊了什么"</span></div>
+      <div class="dc-row"><span class="dc-label">成本</span><span class="dc-value">零延迟，纯本地</span></div>
+    </div>
+    <div class="dual-card">
+      <div class="dc-header">
+        <span class="dc-icon">◆</span>
+        <span class="dc-title">memory_index</span>
+        <span class="dc-subtitle">长期记忆 · 后端</span>
+      </div>
+      <div class="dc-row"><span class="dc-label">存在哪</span><span class="dc-value">sql.js，跟角色/人格走</span></div>
+      <div class="dc-row"><span class="dc-label">格式</span><span class="dc-value">384维向量 + 元数据 + 状态</span></div>
+      <div class="dc-row"><span class="dc-label">注入</span><span class="dc-value">检索 top-K / 置顶 / 工具</span></div>
+      <div class="dc-row"><span class="dc-label">跨窗口</span><span class="dc-value">自动跟角色/人格，无需处理</span></div>
+      <div class="dc-row"><span class="dc-label">解决</span><span class="dc-value">"三周前那件事的细节"</span></div>
+      <div class="dc-row"><span class="dc-label">成本</span><span class="dc-value">向量检索或工具调用</span></div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-stack">
+      Node.js / Express · sql.js · bge-small-zh-v1.5<br>
+      Obsidian via MCP · 原生 JS PWA · MIT License
+    </div>
+    <div class="footer-stats">
+      <div class="stat">
+        <div class="stat-num">280+</div>
+        <div class="stat-label">smoke tests</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">7</div>
+        <div class="stat-label">phases shipped</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">4</div>
+        <div class="stat-label">认知层</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credits -->
+  <div class="credits">
+    <div class="credits-title">INSPIRED BY</div>
+    <div class="credits-list">
+      <a class="credit-tag" href="https://github.com/LucieEveille/kiwi-mem">kiwi-mem · @luicethekiwi</a>
+      <a class="credit-tag" href="https://github.com/P0luz/Ombre-Brain">Ombre-Brain · @P0luz</a>
+      <a class="credit-tag" href="https://github.com/Shitsuten/">Paramecium · @MaltoseCatLoaf</a>
+      <a class="credit-tag" href="http://xhslink.com/o/45wPgaYnKAG">rinrin · 前端设计</a>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
