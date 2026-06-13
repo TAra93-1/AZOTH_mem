@@ -130,6 +130,30 @@ importance   → 分量维度：多重要（长期权重因子）
 
 ---
 
+## 接入原生 Agent（Codex / Claude Code 等）
+
+如果你用的不是普通 API 聊天模型，而是自带上下文压缩能力的 agent 系统（如 Codex、Claude Code、Devin 等），AZOTH 的记忆系统仍然能接，但需要调整注入方式：
+
+**砍一层**：agent 自己管会话连贯，longTermMemory（工作记忆层）变得冗余——关掉前端挂载，让 agent 自带的 context management 处理短期连贯。
+
+**改一路**：memory_index 从"塞进 system prompt"改成"暴露为 MCP 工具"。agent 觉得需要回忆时自己调 `memory_search`，而不是每轮预注入。这反而更接近设计理念——**算法只配菜单，夹不夹菜是人格的事**。
+
+```
+API 模型聊天（现在）:
+  system prompt = 人设 + 世界书 + longTermMemory挂载 + memory_index检索结果
+                                  ↑ 你替它决定看什么
+
+原生 Agent 接入:
+  agent 自己管短期连贯（砍 longTermMemory）
+  memory_index → 暴露为 MCP 工具（agent 主动调用）
+  pinned → agent 初始化时调一次 get_pinned_memories
+  自动总结 → 只写 memory_index，不再双写前端
+```
+
+**注意**：任务型 agent 的压缩会扔掉"跟当前任务无关"的情感细节，但对伴侣场景来说那些细节恰恰是记忆的本体。所以热度和置顶机制在 agent 模式下反而**更重要**——agent 自己不会"惦记"，你得靠 memory_index 替它记住。
+
+---
+
 ## 技术栈
 
 - **运行时**：Node.js + Express
