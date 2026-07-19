@@ -3,640 +3,1243 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AZOTH_mem — AI 伴侣的活体记忆系统</title>
+<meta name="description" content="AZOTH_mem：为长期 AI 伴侣关系设计的分层、可追溯、由人掌控的活体记忆架构。">
+<title>AZOTH_mem — 为长期 AI 伴侣关系设计的记忆架构</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230a22f5'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-size='38' font-family='serif' font-weight='700' fill='white'%3EA%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f5f7fa;
-    --card-bg: #ffffff;
-    --text: #111111;
-    --accent: #0a22f5;
-    --accent-rgb: 10, 34, 245;
-    --highlight: #8898f9;
-    --muted: #6b7280;
-    --border: #dbe0fa;
-    --tag-bg: #eef0ff;
-    --tag-text: #0a22f5;
-    --danger: #ff003c;
-    --mystery-1: #dbe0fa;
-    --mystery-2: #c4ccf7;
+    --paper: #f5f7fa;
+    --paper-deep: #edf0f8;
+    --ink: #11131a;
+    --ink-soft: #5f6676;
+    --blue: #0a22f5;
+    --blue-dark: #0618c5;
+    --blue-wash: #eef0ff;
+    --line: #dbe0fa;
+    --white: #ffffff;
+    --green: oklch(0.50 0.11 150);
+    --amber: oklch(0.58 0.13 70);
+    --rose: oklch(0.51 0.15 25);
+    --serif: "Noto Serif SC", serif;
+    --sans: "Noto Sans SC", sans-serif;
+    --mono: "IBM Plex Mono", monospace;
+    --max: 1180px;
   }
 
   * {
-    margin: 0; padding: 0; box-sizing: border-box;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    line-height: 1.6;
+    min-width: 320px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.78;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* ── Layout ── */
-  .container {
-    max-width: 1080px;
+  a {
+    color: inherit;
+  }
+
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .wrap {
+    width: min(calc(100% - 48px), var(--max));
     margin: 0 auto;
-    padding: 48px 24px 64px;
   }
 
-  /* ── Header ── */
-  .header {
-    margin-bottom: 48px;
+  .eyebrow {
+    color: var(--blue);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
-  .header-title {
-    font-size: 2.8rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: var(--text);
-    margin-bottom: 10px;
+  .rule {
+    height: 1px;
+    background: var(--line);
+  }
+
+  .site-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    border-bottom: 1px solid color-mix(in oklch, var(--line) 78%, transparent);
+    background: color-mix(in oklch, var(--paper) 88%, transparent);
+    backdrop-filter: blur(18px) saturate(120%);
+  }
+
+  .nav-inner {
+    min-height: 68px;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink);
+    text-decoration: none;
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    background: var(--blue);
+    color: white;
+    font-family: var(--serif);
+    font-weight: 900;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .nav-links a:hover,
+  .nav-links a:focus-visible {
+    color: var(--blue);
+  }
+
+  .nav-doc {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    border-bottom: 2px solid var(--blue);
+    color: var(--blue) !important;
+  }
+
+  .hero {
+    padding: 96px 0 76px;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.7fr);
+    gap: 72px;
+    align-items: end;
+  }
+
+  .hero h1 {
+    max-width: 850px;
+    margin-top: 28px;
+    font-family: var(--serif);
+    font-size: clamp(3.2rem, 7.7vw, 7.3rem);
+    font-weight: 900;
+    line-height: 0.98;
+    letter-spacing: -0.065em;
+    text-wrap: balance;
+  }
+
+  .hero h1 em {
+    color: var(--blue);
+    font-style: normal;
+  }
+
+  .hero-side {
+    padding-bottom: 8px;
+  }
+
+  .hero-lead {
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 600;
+    line-height: 1.65;
+    text-wrap: pretty;
+  }
+
+  .hero-note {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  .hero-actions {
+    margin-top: 32px;
+    display: flex;
+    flex-wrap: wrap;
     gap: 12px;
   }
 
-  .header-title .glyph {
+  .button {
+    min-height: 48px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 44px; height: 44px;
-    background: var(--accent);
-    color: #fff;
-    border-radius: 8px;
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-
-  .header-sub {
-    font-size: 1.05rem;
-    color: var(--muted);
-    margin-bottom: 6px;
-    font-weight: 400;
-  }
-
-  .header-tagline {
-    font-size: 0.92rem;
-    color: var(--accent);
-    letter-spacing: 0.02em;
-    border-left: 2px solid var(--accent);
-    padding-left: 12px;
-    margin-top: 14px;
-    font-weight: 500;
-  }
-
-  /* ── Grid ── */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 40px;
-  }
-
-  @media (max-width: 900px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 520px) {
-    .grid { grid-template-columns: 1fr; }
-    .header-title { font-size: 1.6rem; }
-  }
-
-  /* ── Card ── */
-  .card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 18px;
-    position: relative;
-    transition: border-color 0.25s ease, transform 0.2s ease;
-  }
-
-  .card:hover {
-    border-color: var(--accent);
-    transform: translateY(-2px);
-  }
-
-  .card-icon {
-    font-size: 1.5rem;
-    margin-bottom: 12px;
-    display: block;
-    width: 32px; height: 32px;
-    line-height: 32px;
-    text-align: center;
-  }
-
-  .card-title {
-    font-size: 0.98rem;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 12px;
-    letter-spacing: -0.01em;
-  }
-
-  .card-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
-
-  .tag {
-    display: inline-block;
-    font-size: 0.76rem;
-    font-weight: 500;
-    padding: 3px 9px;
-    border-radius: 3px;
-    background: var(--tag-bg);
-    color: var(--tag-text);
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-  }
-
-  .tag.green  { background: #e8f5e9; color: #2e7d32; }
-  .tag.amber  { background: #fff8e1; color: #e65100; }
-  .tag.rose   { background: #fce4ec; color: #c62828; }
-  .tag.gray   { background: #f0f0f0; color: #555; }
-
-  /* ── Cognitive Layers ── */
-  .layers-section {
-    margin-bottom: 40px;
-  }
-
-  .section-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--accent);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-  }
-
-  .layer-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .layer-row {
-    display: flex;
-    align-items: center;
-    padding: 14px 20px;
-    gap: 14px;
+    padding: 0 18px;
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    text-decoration: none;
     font-size: 0.88rem;
-    border-bottom: 1px solid var(--border);
-    transition: background 0.2s;
+    font-weight: 700;
+    transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
   }
 
-  .layer-row:last-child { border-bottom: none; }
-  .layer-row:hover { background: #fafbff; }
-
-  .layer-row.mem-zone {
-    background: rgba(var(--accent-rgb), 0.03);
-    border-left: 3px solid var(--accent);
+  .button.primary {
+    border-color: var(--blue);
+    background: var(--blue);
+    color: white;
   }
 
-  .layer-depth {
+  .button:hover,
+  .button:focus-visible {
+    border-color: var(--blue-dark);
+    background: var(--blue-dark);
+    color: white;
+    outline: none;
+  }
+
+  .opening {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--white);
+  }
+
+  .opening-grid {
+    display: grid;
+    grid-template-columns: 0.72fr 1.28fr;
+    min-height: 360px;
+  }
+
+  .opening-label {
+    padding: 58px 48px 58px 0;
+    border-right: 1px solid var(--line);
+  }
+
+  .opening-label h2 {
+    margin-top: 18px;
+    font-family: var(--serif);
+    font-size: clamp(2rem, 4vw, 3.4rem);
+    line-height: 1.23;
+    letter-spacing: -0.04em;
+  }
+
+  .questions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .question {
+    min-height: 100%;
+    padding: 58px 28px;
+    border-right: 1px solid var(--line);
+  }
+
+  .question:last-child {
+    border-right: 0;
+  }
+
+  .question-number {
+    color: var(--blue);
+    font-family: var(--mono);
     font-size: 0.78rem;
+  }
+
+  .question p {
+    margin-top: 72px;
+    font-family: var(--serif);
+    font-size: 1.18rem;
     font-weight: 600;
-    color: var(--muted);
-    width: 24px;
-    text-align: center;
-    flex-shrink: 0;
+    line-height: 1.7;
   }
 
-  .layer-name {
-    font-weight: 600;
-    color: var(--text);
-    min-width: 140px;
-    flex-shrink: 0;
+  .manifesto {
+    padding: 112px 0;
   }
 
-  .layer-source {
-    font-weight: 400;
-    color: var(--muted);
-    flex-shrink: 0;
-    width: 80px;
+  .manifesto-copy {
+    max-width: 1020px;
+    font-family: var(--serif);
+    font-size: clamp(2.1rem, 4.6vw, 4.8rem);
+    font-weight: 700;
+    line-height: 1.33;
+    letter-spacing: -0.045em;
+    text-wrap: balance;
   }
 
-  .layer-desc {
-    color: var(--muted);
-    font-weight: 400;
+  .manifesto-copy span {
+    color: var(--blue);
   }
 
-  .divider-row {
-    padding: 6px 20px;
-    font-size: 0.75rem;
-    color: var(--accent);
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    background: rgba(var(--accent-rgb), 0.04);
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* ── Dual Layer ── */
-  .dual-layer {
+  .manifesto-foot {
+    margin-top: 44px;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 40px;
+    gap: 28px;
   }
 
-  @media (max-width: 640px) {
-    .dual-layer { grid-template-columns: 1fr; }
+  .manifesto-foot p {
+    max-width: 510px;
+    color: var(--ink-soft);
   }
 
-  .dual-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 22px 20px;
-    transition: border-color 0.25s;
+  .section {
+    padding: 96px 0;
+    border-top: 1px solid var(--line);
   }
 
-  .dual-card:hover { border-color: var(--accent); }
-
-  .dual-card .dc-header {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 14px;
+  .section-head {
+    display: grid;
+    grid-template-columns: 0.55fr 1.45fr;
+    gap: 56px;
+    margin-bottom: 52px;
   }
 
-  .dual-card .dc-icon {
-    font-size: 1.1rem;
+  .section-head h2 {
+    font-family: var(--serif);
+    font-size: clamp(2.1rem, 4.5vw, 4.3rem);
+    line-height: 1.15;
+    letter-spacing: -0.045em;
+    text-wrap: balance;
   }
 
-  .dual-card .dc-title {
-    font-size: 0.95rem;
-    font-weight: 600;
+  .section-intro {
+    max-width: 680px;
+    align-self: end;
+    color: var(--ink-soft);
+    font-size: 1.02rem;
   }
 
-  .dual-card .dc-subtitle {
-    font-size: 0.78rem;
-    color: var(--muted);
-    font-weight: 400;
-    margin-left: auto;
+  .life-cycle {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    border-top: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ink);
   }
 
-  .dc-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    font-size: 0.82rem;
-    border-bottom: 1px dashed var(--border);
+  .cycle-step {
+    min-height: 220px;
+    padding: 24px 18px 28px;
+    border-right: 1px solid var(--line);
   }
 
-  .dc-row:last-child { border-bottom: none; }
-
-  .dc-row .dc-label { color: var(--muted); font-weight: 400; }
-  .dc-row .dc-value { font-weight: 500; text-align: right; max-width: 55%; }
-
-  /* ── Footer ── */
-  .footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 20px;
-    padding-top: 32px;
-    border-top: 1px solid var(--border);
+  .cycle-step:last-child {
+    border-right: 0;
   }
 
-  .footer-stack {
-    font-size: 0.82rem;
-    color: var(--muted);
-    line-height: 1.8;
-  }
-
-  .footer-stats {
-    display: flex; gap: 28px;
-  }
-
-  .stat {
-    text-align: center;
-  }
-
-  .stat-num {
-    font-size: 1.9rem;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: -0.03em;
-  }
-
-  .stat-label {
-    font-size: 0.72rem;
-    color: var(--muted);
-    margin-top: 2px;
-    font-weight: 500;
-  }
-
-  /* ── Credits ── */
-  .credits {
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-  }
-
-  .credits-title {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--muted);
-    margin-bottom: 10px;
-    letter-spacing: 0.05em;
-  }
-
-  .credits-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .credit-tag {
+  .cycle-step .num {
+    color: var(--blue);
+    font-family: var(--mono);
     font-size: 0.75rem;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--muted);
-    text-decoration: none;
-    transition: border-color 0.2s, color 0.2s;
-    font-weight: 400;
   }
 
-  .credit-tag:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+  .cycle-step h3 {
+    margin-top: 48px;
+    font-family: var(--serif);
+    font-size: 1.24rem;
+    line-height: 1.45;
+  }
+
+  .cycle-step p {
+    margin-top: 12px;
+    color: var(--ink-soft);
+    font-size: 0.82rem;
+    line-height: 1.7;
+  }
+
+  .layers {
+    border-top: 1px solid var(--ink);
+  }
+
+  .layer {
+    display: grid;
+    grid-template-columns: 90px 0.8fr 1.35fr 120px;
+    gap: 28px;
+    align-items: baseline;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .layer-code,
+  .layer-owner {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+  }
+
+  .layer-code {
+    color: var(--blue);
+  }
+
+  .layer h3 {
+    font-family: var(--serif);
+    font-size: 1.35rem;
+  }
+
+  .layer p {
+    color: var(--ink-soft);
+  }
+
+  .layer-owner {
+    justify-self: end;
+    color: var(--ink-soft);
+  }
+
+  .principles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 64px;
+    border-top: 1px solid var(--ink);
+  }
+
+  .principle {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 18px;
+    padding: 34px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .principle:nth-child(odd) {
+    padding-right: 32px;
+  }
+
+  .principle:nth-child(even) {
+    padding-left: 32px;
+  }
+
+  .principle-index {
+    color: var(--blue);
+    font-family: var(--mono);
+    font-size: 0.74rem;
+  }
+
+  .principle h3 {
+    font-family: var(--serif);
+    font-size: 1.28rem;
+  }
+
+  .principle p {
+    margin-top: 10px;
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+  }
+
+  .control {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .control .eyebrow {
+    color: color-mix(in oklch, var(--blue-wash) 75%, white);
+  }
+
+  .control-grid {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 72px;
+  }
+
+  .control h2 {
+    margin-top: 18px;
+    font-family: var(--serif);
+    font-size: clamp(2.4rem, 5vw, 4.8rem);
+    line-height: 1.18;
+    letter-spacing: -0.045em;
+  }
+
+  .control h2 em {
+    color: color-mix(in oklch, var(--blue-wash) 75%, white);
+    font-style: normal;
+  }
+
+  .control-list {
+    border-top: 1px solid color-mix(in oklch, var(--paper) 25%, transparent);
+  }
+
+  .control-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 28px;
+    padding: 25px 0;
+    border-bottom: 1px solid color-mix(in oklch, var(--paper) 20%, transparent);
+  }
+
+  .control-row h3 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+  }
+
+  .control-row p {
+    color: color-mix(in oklch, var(--paper) 72%, transparent);
+    font-size: 0.9rem;
+  }
+
+  .scope-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .scope-statement {
+    padding: 36px 0;
+    border-top: 2px solid var(--blue);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .scope-statement h3 {
+    max-width: 520px;
+    font-family: var(--serif);
+    font-size: clamp(1.75rem, 3.2vw, 3rem);
+    line-height: 1.35;
+  }
+
+  .scope-statement p {
+    margin-top: 26px;
+    color: var(--ink-soft);
+  }
+
+  .scope-boundaries {
+    padding: 36px 0 36px 32px;
+    border-top: 1px solid var(--ink);
+  }
+
+  .scope-boundaries h3 {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+  }
+
+  .scope-boundaries ul {
+    margin-top: 24px;
+    list-style: none;
+  }
+
+  .scope-boundaries li {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-soft);
+  }
+
+  .scope-boundaries li::before {
+    content: "—";
+    margin-right: 14px;
+    color: var(--blue);
+  }
+
+  .status-shell {
+    border-top: 1px solid var(--ink);
+  }
+
+  .status-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .status-tab {
+    min-width: 180px;
+    min-height: 54px;
+    padding: 0 20px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .status-tab[aria-selected="true"] {
+    background: var(--blue);
+    color: white;
+  }
+
+  .status-tab:focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: -3px;
+  }
+
+  .status-panel {
+    display: none;
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 54px;
+    padding: 26px 0 12px;
+  }
+
+  .status-panel.active {
+    display: grid;
+  }
+
+  .status-item {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 14px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .status-mark {
+    color: var(--blue);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+  }
+
+  .status-item h3 {
+    font-family: var(--serif);
+    font-size: 1.08rem;
+  }
+
+  .status-item p {
+    margin-top: 5px;
+    color: var(--ink-soft);
+    font-size: 0.86rem;
+  }
+
+  .closing {
+    padding: 118px 0 96px;
+    background: var(--blue);
+    color: white;
+  }
+
+  .closing-grid {
+    display: grid;
+    grid-template-columns: 1.45fr 0.55fr;
+    gap: 56px;
+    align-items: end;
+  }
+
+  .closing h2 {
+    max-width: 850px;
+    font-family: var(--serif);
+    font-size: clamp(2.6rem, 6.5vw, 6.4rem);
+    line-height: 1.08;
+    letter-spacing: -0.055em;
+  }
+
+  .closing-side p {
+    color: color-mix(in oklch, white 82%, transparent);
+  }
+
+  .closing .button {
+    margin-top: 28px;
+    border-color: white;
+    color: white;
+  }
+
+  .closing .button:hover,
+  .closing .button:focus-visible {
+    background: white;
+    color: var(--blue);
+  }
+
+  .site-footer {
+    padding: 34px 0 44px;
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 40px;
+    align-items: center;
+  }
+
+  .footer-copy {
+    color: color-mix(in oklch, var(--paper) 68%, transparent);
+    font-size: 0.78rem;
+  }
+
+  .footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 18px;
+  }
+
+  .footer-links a {
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-decoration: none;
+  }
+
+  .footer-links a:hover,
+  .footer-links a:focus-visible {
+    color: var(--blue-wash);
+  }
+
+  @media (max-width: 960px) {
+    .hero-grid,
+    .opening-grid,
+    .section-head,
+    .control-grid,
+    .closing-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-grid {
+      gap: 46px;
+    }
+
+    .opening-label {
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+      padding-right: 0;
+    }
+
+    .questions {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .life-cycle {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .cycle-step:nth-child(3) {
+      border-right: 0;
+    }
+
+    .cycle-step:nth-child(-n+3) {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .layer {
+      grid-template-columns: 70px 0.8fr 1.2fr;
+    }
+
+    .layer-owner {
+      grid-column: 2 / -1;
+      justify-self: start;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .wrap {
+      width: min(calc(100% - 32px), var(--max));
+    }
+
+    .nav-inner {
+      min-height: 60px;
+    }
+
+    .nav-links li:not(:last-child) {
+      display: none;
+    }
+
+    .hero {
+      padding: 70px 0 58px;
+    }
+
+    .hero h1 {
+      font-size: clamp(3rem, 15vw, 5.4rem);
+    }
+
+    .opening-label,
+    .question {
+      padding: 38px 22px;
+    }
+
+    .questions {
+      grid-template-columns: 1fr;
+    }
+
+    .question {
+      min-height: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .question:last-child {
+      border-bottom: 0;
+    }
+
+    .question p {
+      margin-top: 28px;
+    }
+
+    .manifesto,
+    .section {
+      padding: 72px 0;
+    }
+
+    .manifesto-foot,
+    .principles,
+    .scope-grid,
+    .status-panel.active,
+    .footer-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .life-cycle {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .cycle-step:nth-child(2n) {
+      border-right: 0;
+    }
+
+    .cycle-step:nth-child(3) {
+      border-right: 1px solid var(--line);
+    }
+
+    .cycle-step:nth-child(-n+4) {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .layer {
+      grid-template-columns: 52px 1fr;
+      gap: 12px 18px;
+    }
+
+    .layer p,
+    .layer-owner {
+      grid-column: 2;
+    }
+
+    .principle:nth-child(odd),
+    .principle:nth-child(even) {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    .scope-boundaries {
+      padding-left: 0;
+    }
+
+    .control-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .footer-links {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .life-cycle {
+      grid-template-columns: 1fr;
+    }
+
+    .cycle-step,
+    .cycle-step:nth-child(3) {
+      min-height: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .cycle-step h3 {
+      margin-top: 24px;
+    }
+
+    .status-tab {
+      min-width: 150px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    * {
+      transition-duration: 0.01ms !important;
+    }
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-
-  <!-- Header -->
-  <div class="header">
-    <div class="header-title">
-      <span class="glyph">A</span>
-      AZOTH_mem
-    </div>
-    <div class="header-sub">AI 伴侣的活体记忆系统 — 让你的 AI 拥有有生命状态的长期心智</div>
-    <div class="header-sub">多角色/人格原生 · sql.js + bge-small-zh + Qwen3 · MIT 开源</div>
-    <div class="header-tagline">分离"想起"和"证明"，用热度给记忆一条代谢曲线，用四个正交维度给每条记忆一个生命坐标。</div>
+<nav class="site-nav" aria-label="主导航">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="返回顶部">
+      <span class="brand-mark" aria-hidden="true">A</span>
+      <span>AZOTH_mem</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#why">为什么</a></li>
+      <li><a href="#memory-life">记忆怎样生长</a></li>
+      <li><a href="#control">人的控制权</a></li>
+      <li><a href="#status">当前能力</a></li>
+      <li><a class="nav-doc" href="azoth_memory_system_anatomy.md">阅读架构全景</a></li>
+    </ul>
   </div>
+</nav>
 
-  <!-- Feature Grid -->
-  <div class="section-label">核心模块</div>
-  <div class="grid">
-
-    <div class="card">
-      <span class="card-icon">◎</span>
-      <div class="card-title">双层记忆体</div>
-      <div class="card-tags">
-        <span class="tag">浓缩层 memory_index</span>
-        <span class="tag">证据层 Obsidian</span>
-        <span class="tag">memory_links</span>
-        <span class="tag green">想起 ≠ 证明</span>
+<main id="top">
+  <header class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">Living memory for long-term AI companionship</div>
+        <h1>记住共同生活，<em>不是保存更多聊天。</em></h1>
+      </div>
+      <div class="hero-side">
+        <p class="hero-lead">AZOTH_mem 是一套为长期 AI 伴侣关系设计的活体记忆架构：分层、可追溯，并且始终由人掌控。</p>
+        <p class="hero-note">这个仓库分享架构与参考实现，不是一键安装的聊天软件。你可以借用其中的设计，为自己的 AI 伴侣搭建长期记忆。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#memory-life">看一段记忆怎样回来</a>
+          <a class="button" href="README.md">阅读完整介绍</a>
+        </div>
       </div>
     </div>
+  </header>
 
-    <div class="card">
-      <span class="card-icon">△</span>
-      <div class="card-title">热度代谢系统</div>
-      <div class="card-tags">
-        <span class="tag">指数衰减</span>
-        <span class="tag">半衰期延长</span>
-        <span class="tag">arousal 增益</span>
-        <span class="tag amber">冷启动保护</span>
-        <span class="tag">在场 ≠ 被想起</span>
+  <section class="opening" id="why">
+    <div class="wrap opening-grid">
+      <div class="opening-label">
+        <div class="eyebrow">The real problem</div>
+        <h2>长期关系面对的，从来不只是“有没有历史记录”。</h2>
+      </div>
+      <div class="questions">
+        <article class="question">
+          <div class="question-number">01 / RECALL</div>
+          <p>共同经历那么多，它应当在什么时候想起哪一件？</p>
+        </article>
+        <article class="question">
+          <div class="question-number">02 / EVIDENCE</div>
+          <p>它说“我记得”时，能不能回到当时的原话？</p>
+        </article>
+        <article class="question">
+          <div class="question-number">03 / AGENCY</div>
+          <p>哪些记忆常驻、沉底或归档，能不能由人决定？</p>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⬡</span>
-      <div class="card-title">四维生命坐标</div>
-      <div class="card-tags">
-        <span class="tag">pinned 通道</span>
-        <span class="tag">resolved 事态</span>
-        <span class="tag">archive 可见性</span>
-        <span class="tag">importance 分量</span>
-        <span class="tag green">正交不覆盖</span>
+  <section class="manifesto">
+    <div class="wrap">
+      <p class="manifesto-copy">记忆负责<span>想起</span>，证据负责<span>证明</span>，链接负责把两者重新牵回一段正在发生的关系里。</p>
+      <div class="manifesto-foot">
+        <p>AZOTH_mem 不追求把全部历史塞进每一轮，而是让系统选择合适的记忆，再在需要时回到原始对话、笔记或文件核对。</p>
+        <p>它改变的是记忆被想起的可能，不会偷偷改写正文。AI 可以提出整理建议，最终确认仍然属于人。</p>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⊞</span>
-      <div class="card-title">记忆工作台</div>
-      <div class="card-tags">
-        <span class="tag">正文编辑+重向量化</span>
-        <span class="tag">状态即点即生效</span>
-        <span class="tag">情绪坐标滑杆</span>
-        <span class="tag">staging 审核箱</span>
-        <span class="tag amber">批量归档</span>
+  <section class="section" id="memory-life">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">A memory's lifecycle</div>
+        <div>
+          <h2>一段记忆怎样形成，又怎样回来</h2>
+          <p class="section-intro">这是一条会持续反馈的循环，不是一次性的“总结后存档”。记忆被使用，人也会继续修正它。</p>
+        </div>
+      </div>
+      <div class="life-cycle">
+        <article class="cycle-step">
+          <div class="num">01</div>
+          <h3>进入</h3>
+          <p>对话、手动记录、笔记或文件成为候选材料。</p>
+        </article>
+        <article class="cycle-step">
+          <div class="num">02</div>
+          <h3>整理</h3>
+          <p>提取值得长期保留的内容，分组并记录来源。</p>
+        </article>
+        <article class="cycle-step">
+          <div class="num">03</div>
+          <h3>分层保存</h3>
+          <p>工作记忆、长期经历、用户画像与原文证据各归其位。</p>
+        </article>
+        <article class="cycle-step">
+          <div class="num">04</div>
+          <h3>被想起</h3>
+          <p>明确搜索、核心常驻或自然联想，各走不同通道。</p>
+        </article>
+        <article class="cycle-step">
+          <div class="num">05</div>
+          <h3>回到证据</h3>
+          <p>需要细节时，带回来源路径、可靠片段或原文。</p>
+        </article>
+        <article class="cycle-step">
+          <div class="num">06</div>
+          <h3>由人整理</h3>
+          <p>查看、修改、置顶、结束、归档或合并。</p>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⊕</span>
-      <div class="card-title">证据锚定 Obsidian</div>
-      <div class="card-tags">
-        <span class="tag">azoth_doc_id 身份</span>
-        <span class="tag">BFS vault 扫描</span>
-        <span class="tag">失联检测不删行</span>
-        <span class="tag green">三档注入</span>
-        <span class="tag">path · snippet · full</span>
+  <section class="section" id="layers">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Separation by meaning</div>
+        <div>
+          <h2>五种“记住”，不该混进同一个文本框</h2>
+          <p class="section-intro">不同层拥有不同的更新频率、可信度和使用方式。分开，才能让关系成长而不失控。</p>
+        </div>
+      </div>
+      <div class="layers">
+        <article class="layer">
+          <div class="layer-code">L1</div>
+          <h3>角色身份</h3>
+          <p>“我是谁。”角色的稳定核心与行为边界，极少变化。</p>
+          <div class="layer-owner">由人维护</div>
+        </article>
+        <article class="layer">
+          <div class="layer-code">L2</div>
+          <h3>用户画像</h3>
+          <p>“我怎样长期理解你。”允许随相处更新，但保留快照与来源。</p>
+          <div class="layer-owner">渐进更新</div>
+        </article>
+        <article class="layer">
+          <div class="layer-code">L3</div>
+          <h3>工作记忆</h3>
+          <p>“我们刚刚聊了什么。”保持当前窗口和跨窗口的短期连续性。</p>
+          <div class="layer-owner">近期挂载</div>
+        </article>
+        <article class="layer">
+          <div class="layer-code">L4</div>
+          <h3>长期记忆</h3>
+          <p>“我们曾经经历过什么。”可搜索、可置顶、会沉底、能整理。</p>
+          <div class="layer-owner">选择召回</div>
+        </article>
+        <article class="layer">
+          <div class="layer-code">L5</div>
+          <h3>原文证据</h3>
+          <p>“当时实际上发生了什么。”保存对话、笔记、文件与逐字引用。</p>
+          <div class="layer-owner">按需回牵</div>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⊘</span>
-      <div class="card-title">相似合并</div>
-      <div class="card-tags">
-        <span class="tag">cos + bigram Jaccard</span>
-        <span class="tag">并查集成簇</span>
-        <span class="tag rose">绝不自动合并</span>
-        <span class="tag">absorbed 归档可回溯</span>
-        <span class="tag">merged_into 链</span>
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Four durable principles</div>
+        <div>
+          <h2>比某一种模型或向量库更值得留下的原则</h2>
+        </div>
+      </div>
+      <div class="principles">
+        <article class="principle">
+          <div class="principle-index">01</div>
+          <div>
+            <h3>想起与证明分离</h3>
+            <p>浓缩记忆负责联想，原始材料负责核对；两者通过稳定来源链接重新连接。</p>
+          </div>
+        </article>
+        <article class="principle">
+          <div class="principle-index">02</div>
+          <div>
+            <h3>热度不改写正文</h3>
+            <p>时间和召回次数改变优先级，不会让一段记忆自动褪色、压缩或失真。</p>
+          </div>
+        </article>
+        <article class="principle">
+          <div class="principle-index">03</div>
+          <div>
+            <h3>旧记忆不因缺标签受罚</h3>
+            <p>领域、情绪和提示词只做正向增强，历史数据仍保留基础召回资格。</p>
+          </div>
+        </article>
+        <article class="principle">
+          <div class="principle-index">04</div>
+          <div>
+            <h3>建议属于 AI，决定属于人</h3>
+            <p>相似合并、关系建链和永久归档不静默发生，最终整理权留给使用者。</p>
+          </div>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⊡</span>
-      <div class="card-title">多角色/人格原生</div>
-      <div class="card-tags">
-        <span class="tag">character_id 隔离</span>
-        <span class="tag">shared 公共池</span>
-        <span class="tag">per-char vault</span>
-        <span class="tag">per-char pinned</span>
-        <span class="tag green">空间可见性</span>
+  <section class="section control" id="control">
+    <div class="wrap control-grid">
+      <div>
+        <div class="eyebrow">Human agency</div>
+        <h2>它可以记得，<em>但记忆的边界仍属于你。</em></h2>
+      </div>
+      <div class="control-list">
+        <article class="control-row">
+          <h3>置顶</h3>
+          <p>让纪念日、长期约定和重要边界稳定在场，但不会冒充每轮都被重新想起。</p>
+        </article>
+        <article class="control-row">
+          <h3>结束</h3>
+          <p>已经处理完的事情自然沉底；当你明确追问时，它仍然能够回来。</p>
+        </article>
+        <article class="control-row">
+          <h3>归档</h3>
+          <p>让一段记忆退出 AI 主动视野，同时保留在人类管理面。</p>
+        </article>
+        <article class="control-row">
+          <h3>角色隔离</h3>
+          <p>公共事实、角色私有、空间私有和项目记忆使用不同边界，避免私密经历串线。</p>
+        </article>
+        <article class="control-row">
+          <h3>来源追溯</h3>
+          <p>从记忆回到原始对话、Obsidian 笔记或上传文件，确认它为什么会被这样记住。</p>
+        </article>
+        <article class="control-row">
+          <h3>本轮透明度</h3>
+          <p>看见是否触发召回、哪些领域被激活、自然浮现的原因和带回的证据数量。</p>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⊿</span>
-      <div class="card-title">文件蒸馏导入</div>
-      <div class="card-tags">
-        <span class="tag">副模型抽 ≤5 条候选</span>
-        <span class="tag">全套标签自动生成</span>
-        <span class="tag amber">staging 人审</span>
-        <span class="tag">整篇直存 / 蒸馏</span>
-        <span class="tag">上传进证据层</span>
+  <section class="section" id="emotion">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Emotion-aware, not emotion-ruled</div>
+        <div>
+          <h2>情绪可以帮助联想，但不应该接管记忆</h2>
+        </div>
+      </div>
+      <div class="scope-grid">
+        <article class="scope-statement">
+          <h3>当此刻和过去属于同一情绪领域，方向也确实同频时，那段记忆更容易自然浮现。</h3>
+          <p>它表现为一个温和的正向增强，而不是把情绪当作主搜索的硬门槛。</p>
+        </article>
+        <article class="scope-boundaries">
+          <h3>这套机制不会</h3>
+          <ul>
+            <li>改写或重新解释记忆正文</li>
+            <li>惩罚没有情绪标签的历史记忆</li>
+            <li>把混合情绪强行归成正向或负向</li>
+            <li>自动构造一条长期情绪曲线</li>
+            <li>让情绪信号凌驾于语义相关性</li>
+          </ul>
+        </article>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">💭</span>
-      <div class="card-title">主动浮现池</div>
-      <div class="card-tags">
-        <span class="tag">Lite 层 ~150ms</span>
-        <span class="tag">Full 三信号</span>
-        <span class="tag">余味 echo</span>
-        <span class="tag amber">Hebbian 行为边</span>
-        <span class="tag">surfacingScore</span>
-        <span class="tag green">灰度运行</span>
+  <section class="section" id="status">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">Capability status</div>
+        <div>
+          <h2>现在能做什么，哪些仍在实验</h2>
+          <p class="section-intro">用三个状态切换查看稳定基础、可选增强与当前界面边界。</p>
+        </div>
+      </div>
+
+      <div class="status-shell">
+        <div class="status-tabs" role="tablist" aria-label="能力状态">
+          <button class="status-tab" type="button" role="tab" id="tab-stable" aria-controls="panel-stable" aria-selected="true" data-panel="stable">稳定基础</button>
+          <button class="status-tab" type="button" role="tab" id="tab-experimental" aria-controls="panel-experimental" aria-selected="false" data-panel="experimental">可选增强</button>
+          <button class="status-tab" type="button" role="tab" id="tab-boundary" aria-controls="panel-boundary" aria-selected="false" data-panel="boundary">当前边界</button>
+        </div>
+
+        <div class="status-panel active" id="panel-stable" role="tabpanel" aria-labelledby="tab-stable" data-panel-content="stable">
+          <article class="status-item"><div class="status-mark">01</div><div><h3>分层记忆</h3><p>工作记忆、长期经历、用户画像和原文证据分开保存。</p></div></article>
+          <article class="status-item"><div class="status-mark">02</div><div><h3>融合召回</h3><p>关键词与原子级、组级语义车道共同寻找相关经历。</p></div></article>
+          <article class="status-item"><div class="status-mark">03</div><div><h3>生命状态</h3><p>置顶、已结束、归档和重要度彼此独立。</p></div></article>
+          <article class="status-item"><div class="status-mark">04</div><div><h3>角色与空间隔离</h3><p>公共事实、角色私有、空间私有和项目范围各守边界。</p></div></article>
+          <article class="status-item"><div class="status-mark">05</div><div><h3>证据回牵</h3><p>从记忆回到对话、笔记和文件的路径、片段或全文。</p></div></article>
+          <article class="status-item"><div class="status-mark">06</div><div><h3>人工工作台</h3><p>查看、编辑、审核、建链、归档和合并都能由人完成。</p></div></article>
+        </div>
+
+        <div class="status-panel" id="panel-experimental" role="tabpanel" aria-labelledby="tab-experimental" data-panel-content="experimental" hidden>
+          <article class="status-item"><div class="status-mark">01</div><div><h3>主动浮现</h3><p>高热、语义相关或自然联想的记忆可以在没有直接搜索时出现。</p></div></article>
+          <article class="status-item"><div class="status-mark">02</div><div><h3>记忆领域路由</h3><p>relationship、emotion、health、task 等领域为浮现提供正向增强。</p></div></article>
+          <article class="status-item"><div class="status-mark">03</div><div><h3>情绪同频</h3><p>同一情绪领域和方向可以提高某段记忆的浮现机会。</p></div></article>
+          <article class="status-item"><div class="status-mark">04</div><div><h3>旧记忆补回</h3><p>从整库寻找低热但与当前领域高度一致的旧经历。</p></div></article>
+          <article class="status-item"><div class="status-mark">05</div><div><h3>提示与共现</h3><p>“什么场景下会想起”与“哪些记忆常一起出现”成为联想信号。</p></div></article>
+          <article class="status-item"><div class="status-mark">06</div><div><h3>候选精排</h3><p>在基础召回之后，可增加更精细的排序与证据推荐。</p></div></article>
+        </div>
+
+        <div class="status-panel" id="panel-boundary" role="tabpanel" aria-labelledby="tab-boundary" data-panel-content="boundary" hidden>
+          <article class="status-item"><div class="status-mark">01</div><div><h3>没有专用时间线 UI</h3><p>已经能按时间浏览，但还没有前端可视化时间线。</p></div></article>
+          <article class="status-item"><div class="status-mark">02</div><div><h3>没有关系图谱画布</h3><p>关系数据、人审和列表已存在，节点—边交互界面尚未提供。</p></div></article>
+        </div>
       </div>
     </div>
+  </section>
 
-    <div class="card">
-      <span class="card-icon">⟐</span>
-      <div class="card-title">Blended 召回引擎</div>
-      <div class="card-tags">
-        <span class="tag">bge-small-zh 384维</span>
-        <span class="tag">Qwen3-0.6B 影子</span>
-        <span class="tag">RRF 双车道融合</span>
-        <span class="tag amber">Reranker 灰度</span>
-        <span class="tag">644 组已重建</span>
+  <section class="closing">
+    <div class="wrap closing-grid">
+      <h2>你不必复制全部系统，先把记忆、证据与人的决定权分开。</h2>
+      <div class="closing-side">
+        <p>模型和向量库会不断变化。来源可追溯、边界贯穿所有通道、最终整理权属于人，这三条原则更可能长期成立。</p>
+        <a class="button" href="azoth_memory_system_anatomy.md">进入技术全景</a>
       </div>
     </div>
+  </section>
+</main>
 
-    <div class="card">
-      <span class="card-icon">🔗</span>
-      <div class="card-title">证据链三层</div>
-      <div class="card-tags">
-        <span class="tag">逐字引用验证</span>
-        <span class="tag">记忆出生证</span>
-        <span class="tag">文档段落 chunk</span>
-        <span class="tag rose">漂移检测 hash</span>
-        <span class="tag green">机械校验</span>
-      </div>
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <p class="footer-copy">AZOTH_mem · AI companion memory architecture · MIT License</p>
+    <div class="footer-links">
+      <a href="README.md">README</a>
+      <a href="azoth_memory_system_anatomy.md">ARCHITECTURE</a>
+      <a href="https://github.com/LucieEveille/kiwi-mem">KIWI-MEM</a>
+      <a href="https://github.com/P0luz/Ombre-Brain">OMBRE-BRAIN</a>
+      <a href="https://github.com/Shitsuten/">PARAMECIUM</a>
     </div>
-
-    <div class="card">
-      <span class="card-icon">⇋</span>
-      <div class="card-title">关系建议箱</div>
-      <div class="card-tags">
-        <span class="tag">角色提议</span>
-        <span class="tag rose">人审才建链</span>
-        <span class="tag">merged_into 不暴露</span>
-        <span class="tag">pending → approved</span>
-      </div>
-    </div>
-
   </div>
+</footer>
 
-  <!-- Cognitive Layers -->
-  <div class="section-label">认知全景 — 记忆在 prompt 组装链的位置</div>
-  <div class="layer-stack">
-    <div class="layer-row">
-      <span class="layer-depth">L1</span>
-      <span class="layer-name">人设 persona</span>
-      <span class="layer-source tag gray">人写</span>
-      <span class="layer-desc">"我是谁" — 角色/人格身份，极少变</span>
-    </div>
-    <div class="layer-row">
-      <span class="layer-depth">L2</span>
-      <span class="layer-name">世界书 worldbook</span>
-      <span class="layer-source tag gray">人写</span>
-      <span class="layer-desc">"世界是什么样的" — 关键词触发的知识条目</span>
-    </div>
-    <div class="divider-row">↓ 以下是记忆系统的范围 ↓</div>
-    <div class="layer-row mem-zone">
-      <span class="layer-depth">L3</span>
-      <span class="layer-name">工作记忆</span>
-      <span class="layer-source tag green">自动</span>
-      <span class="layer-desc">"我们刚聊了什么" — 前端 longTermMemory，跨窗口 reference 挂载</span>
-    </div>
-    <div class="layer-row mem-zone">
-      <span class="layer-depth">L4</span>
-      <span class="layer-name">长期记忆</span>
-      <span class="layer-source tag green">自动</span>
-      <span class="layer-desc">"我们经历过什么" — 后端 memory_index，向量检索 + 热度 + 证据</span>
-    </div>
-  </div>
+<script>
+  const statusTabs = Array.from(document.querySelectorAll('[data-panel]'));
+  const statusPanels = Array.from(document.querySelectorAll('[data-panel-content]'));
 
-  <div style="height: 28px;"></div>
+  function activateStatus(name, focusTab = false) {
+    statusTabs.forEach((tab) => {
+      const selected = tab.dataset.panel === name;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected && focusTab) tab.focus();
+    });
 
-  <!-- Dual Layer -->
-  <div class="section-label">双层记忆分工 — 副模型总结时同时双写</div>
-  <div class="dual-layer">
-    <div class="dual-card">
-      <div class="dc-header">
-        <span class="dc-icon">◇</span>
-        <span class="dc-title">longTermMemory</span>
-        <span class="dc-subtitle">工作记忆 · 前端</span>
-      </div>
-      <div class="dc-row"><span class="dc-label">存在哪</span><span class="dc-value">IndexedDB，跟窗口走</span></div>
-      <div class="dc-row"><span class="dc-label">格式</span><span class="dc-value">纯文本条目</span></div>
-      <div class="dc-row"><span class="dc-label">注入</span><span class="dc-value">最近 N 条直接塞 prompt</span></div>
-      <div class="dc-row"><span class="dc-label">跨窗口</span><span class="dc-value">reference 挂载源窗口</span></div>
-      <div class="dc-row"><span class="dc-label">解决</span><span class="dc-value">"我们刚聊了什么"</span></div>
-      <div class="dc-row"><span class="dc-label">成本</span><span class="dc-value">零延迟，纯本地</span></div>
-    </div>
-    <div class="dual-card">
-      <div class="dc-header">
-        <span class="dc-icon">◆</span>
-        <span class="dc-title">memory_index</span>
-        <span class="dc-subtitle">长期记忆 · 后端</span>
-      </div>
-      <div class="dc-row"><span class="dc-label">存在哪</span><span class="dc-value">sql.js，跟角色/人格走</span></div>
-      <div class="dc-row"><span class="dc-label">格式</span><span class="dc-value">384维向量 + 元数据 + 状态</span></div>
-      <div class="dc-row"><span class="dc-label">注入</span><span class="dc-value">检索 top-K / 置顶 / 工具</span></div>
-      <div class="dc-row"><span class="dc-label">跨窗口</span><span class="dc-value">自动跟角色/人格，无需处理</span></div>
-      <div class="dc-row"><span class="dc-label">解决</span><span class="dc-value">"三周前那件事的细节"</span></div>
-      <div class="dc-row"><span class="dc-label">成本</span><span class="dc-value">向量检索或工具调用</span></div>
-    </div>
-  </div>
+    statusPanels.forEach((panel) => {
+      const active = panel.dataset.panelContent === name;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    });
+  }
 
-  <!-- Footer -->
-  <div class="footer">
-    <div class="footer-stack">
-      Node.js / Express · sql.js · bge-small-zh + Qwen3-0.6B<br>
-      Obsidian via MCP · 原生 JS PWA · MIT License
-    </div>
-    <div class="footer-stats">
-      <div class="stat">
-        <div class="stat-num">280+</div>
-        <div class="stat-label">smoke tests</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">12+</div>
-        <div class="stat-label">phases shipped</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">11</div>
-        <div class="stat-label">数据表</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">4</div>
-        <div class="stat-label">认知层</div>
-      </div>
-    </div>
-  </div>
+  statusTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateStatus(tab.dataset.panel));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      let nextIndex = index;
+      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + statusTabs.length) % statusTabs.length;
+      if (event.key === 'ArrowRight') nextIndex = (index + 1) % statusTabs.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = statusTabs.length - 1;
+      activateStatus(statusTabs[nextIndex].dataset.panel, true);
+    });
+  });
 
-  <!-- Credits -->
-  <div class="credits">
-    <div class="credits-title">INSPIRED BY</div>
-    <div class="credits-list">
-      <a class="credit-tag" href="https://github.com/LucieEveille/kiwi-mem">kiwi-mem · @luicethekiwi</a>
-      <a class="credit-tag" href="https://github.com/P0luz/Ombre-Brain">Ombre-Brain · @P0luz</a>
-      <a class="credit-tag" href="https://github.com/Shitsuten/">Paramecium · @MaltoseCatLoaf</a>
-      <a class="credit-tag" href="http://xhslink.com/o/45wPgaYnKAG">rinrin · 前端设计</a>
-    </div>
-  </div>
-
-</div>
-
+  activateStatus('stable');
+</script>
 </body>
 </html>
