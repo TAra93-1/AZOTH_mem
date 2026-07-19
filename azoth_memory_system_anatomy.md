@@ -1,674 +1,710 @@
 # AZOTH 记忆系统 — 架构全景
 
-> **版本**：v5.2 · 2026-06-20 更新 · 对齐代码实际状态
+> **文档版本：v6.0 · 2026-07-19**
+>
+> **核验范围：** AZOTH 当前本地主线的写入、存储、召回、浮现、证据、注入、透明度与人工治理链。
+> **状态词约定：** “已实现”只代表代码与回归存在；“已运行”才代表默认链会使用；“灰度”表示还受开关或入口限制。
 
 ---
 
-## 0. 一句话定位
+## 0. 先给结论
 
-AZOTH 的记忆不是"搜得到的旧东西"——它是**有生命状态的长期心智**。有些永远在场（置顶），有些会热起来（浮现），有些会沉底（已解决），有些能回到原文（Obsidian 证据），有些会被整理合并（去重），有些会**主动冒出来**（浮现池）。
+AZOTH 的记忆系统已经不是一条“向量搜索 → 塞进 prompt”的直线，而是一套完整闭环：
 
-**多角色/小机原生**：AZOTH 从第一天起就为多个 AI 角色/小机共存的"多机之家"设计——每个角色/小机有独立的记忆空间、独立的 Obsidian vault 绑定、独立的置顶池，同时支持跨角色/小机共享的公共事实层。一对一也能用，但架构天然支持你家有很多位小机。
+1. 从对话、工具、文件和人工操作接收材料；
+2. 把短期连续性、长期原子记忆、用户画像和原文证据分层保存；
+3. 通过触发器、置顶、混合检索和主动浮现决定本轮想起什么；
+4. 把记忆、浮现理由与原文证据分区注入；
+5. 用“蒸馏纪”向人解释本轮召回；
+6. 再由访问热度、人审、合并、归档和画像蒸馏持续整理。
+
+旧文档里最需要纠正的判断是：
+
+- **Scope 与当前情绪极性已经由同一次副模型观察产出。**
+- **情绪同频浮现已经实现，但只在主动浮现侧、且受多重开关和入口限制。**
+- **主搜索不使用 scope 或当前情绪极性做排序或硬过滤。**
+- **Enso 不是记忆系统；Dream 整合和记忆软化没有实现，也不是当前下一阶段。**
+- **已有时间浏览工具和关系边，但没有前端时间线或关系图谱画布。**
 
 ---
 
-## 1. 架构总览
+## 1. 认知分层
 
 ```mermaid
-graph TB
-    subgraph "前端层 (PWA)"
-        A["script.js<br/>聊天主链"]
-        B["memory-desk.js<br/>记忆工作台 · 105KB"]
-        C["memory-desk.css<br/>memdesk-* 命名空间"]
-        D["api-layer.js<br/>通用 API 封装"]
-    end
-
-    subgraph "网关路由层 (Express)"
-        E["routes/memory-index.js<br/>列表/搜/PATCH/PUT/链接/合并"]
-        F["routes/memory-staging.js<br/>待审核 approve/reject"]
-        G["routes/memory-chain.js<br/>对话链/N轮总结"]
-        H["routes/obsidian-docs.js<br/>文档索引/扫描"]
-    end
-
-    subgraph "服务层 (Business Logic)"
-        I["services/memory-records.js<br/>85KB · 核心CRUD+状态+链接+合并"]
-        J["services/memory-import.js<br/>文件蒸馏导入"]
-        K["services/obsidian-index.js<br/>Vault BFS扫描+身份追踪"]
-        L["services/phase2-extractor.js<br/>Phase2 蒸馏抽取"]
-        L2["services/memory-surfacing.js<br/>24KB · 主动浮现池"]
-        L3["services/memory-group-embeddings.js<br/>9KB · Qwen3影子向量"]
-        L4["services/memory-link-suggestions.js<br/>8KB · 关系建议箱"]
-        L5["services/source-context.js<br/>33KB · 出生证管理"]
-        L6["services/source-chunks.js<br/>19KB · 文档段落证据"]
-        L7["services/evidence-quote.js<br/>2KB · 逐字引用验证"]
-        L8["services/memory-injection-format.js<br/>9KB · 注入格式化"]
-    end
-
-    subgraph "工具层 (LLM 可调用)"
-        M["tools/memory.js<br/>42KB · memory_save · 写入链"]
-        N["tools/memory-search.js<br/>94KB · hybrid+blended+contextual"]
-        O["tools/merge-memory.js<br/>相似簇+合并"]
-        P["tools/obsidian-wakeup.js<br/>7个Obsidian MCP工具"]
-    end
-
-    subgraph "数据层 (sql.js · db.js 78KB)"
-        Q["memory_index<br/>原子记忆 · 384维+Qwen3影子"]
-        R["memory_links<br/>端点式关系表"]
-        R2["memory_link_suggestions<br/>人审关系建议"]
-        S["memory_staging<br/>待审核暂存"]
-        T["obsidian_documents<br/>文档索引"]
-        T2["source_contexts<br/>记忆出生证"]
-        T3["source_chunks<br/>文档段落证据"]
-        T4["source_chunk_embeddings<br/>段落多模型向量"]
-        T5["memory_group_embeddings<br/>Qwen3组级影子向量"]
-        T6["memory_recall_context<br/>召回语境"]
-        T7["memory_co_recall<br/>赫布行为边"]
-        U["ai_memories<br/>旧格式·只读遗产"]
-    end
-
-    subgraph "维护层 (Scripts)"
-        V["scripts/verify-memory-states.js<br/>194项 smoke"]
-        W["scripts/verify-memory-desk.js<br/>86项 smoke"]
-        X["scripts/compare-memory-scoring.js<br/>v1/v2 离线对比"]
-        Y["scripts/backfill-memory-meta.js<br/>历史回填"]
-    end
-
-    subgraph "Obsidian 层"
-        Z["Vault 文件系统<br/>via MCP 工具访问"]
-        AA["azoth-index.md<br/>每 vault 索引清单"]
-    end
-
-    A --> E & F & G
-    B --> E & F & H
-    E --> I
-    F --> I
-    G --> M
-    H --> K
-    I --> Q & R & S
-    J --> M & I
-    K --> T & P
-    L --> M
-    M --> Q
-    N --> Q & R & T & T5
-    O --> I
-    P --> Z
-    L2 --> N & T6 & T7
-    L3 --> T5
-    L4 --> R2
-    L5 --> T2
-    L6 --> T3 & T4
-    L7 --> T3
+flowchart TB
+    RP["角色身份<br/>role-persona.md<br/>人维护"] --> PROMPT["本轮上下文"]
+    WB["世界知识<br/>worldbook / 项目文件<br/>人策展"] --> PROMPT
+    UP["用户画像<br/>user-persona.md<br/>长期理解"] --> PROMPT
+    WM["工作记忆<br/>longTermMemory<br/>短期连续性"] --> PROMPT
+    LM["长期原子记忆<br/>memory_index<br/>可检索、可整理"] --> PROMPT
+    EV["证据层<br/>Obsidian · 上传文件 · 出生证"] --> PROMPT
 ```
 
-### 1.5 记忆在认知全景里的位置
+### 1.1 角色身份
 
-AI 角色/小机的 prompt 组装链涉及四个认知层，记忆系统管的是下面两层：
+`role-persona.md` 回答“我是谁、怎样行动”。这是角色的稳定核心，由人维护，记忆蒸馏不会自行重写它。
 
-```
-身份层（极少变，人写的）
-└── 人设 persona prompt → "我是谁"
+### 1.2 用户画像
 
-知识层（人工策展，关键词触发）
-└── 世界书 worldbook → "世界是什么样的"
+`user-persona.md` 回答“我怎样长期理解这个用户”。当前结构是四层时间叙事：
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-  ↓ 以下是记忆系统的范围 ↓
+- 当下最在意；
+- 近月变化；
+- 更早阶段；
+- 长期稳定。
 
-工作记忆层（每轮自动，短期连贯，纯前端）
-└── longTermMemory → "我们刚聊了什么"
+当 `PHASE2_OUTPUT_MODE=persona` 时，Phase 2 会把一批合格小总结蒸馏进这份画像。写回前会留快照，支持画像正文的记忆组证据单独存在旁路表里；人工编辑优先。
 
-长期记忆层（向量化，有生命状态，后端）
-└── memory_index → "我们经历过什么"
-```
+### 1.3 工作记忆
 
-身份和知识是**你写的**，角色/小机不会自己改自己的人设。记忆是**从交互中生长的**。
+`longTermMemory` 保存近期小总结，主要解决窗口内和跨窗口的短期连续性。它不是向量长期库，也不承担证据证明。
 
-### 1.6 双层记忆分工
+### 1.4 长期原子记忆
 
-副模型每 N 轮自动总结时，产出**同时双写**：
+`memory_index` 保存可以被检索、置顶、沉底、归档、合并和链接的原子记忆。相关原子用 `group_id` 组成一组；召回后通常以组为单位还原完整语义。
+
+### 1.5 证据层
+
+Obsidian 文档、上传文件、原始对话窗口和逐字引用验证回答“这条记忆从哪里来、原话是什么”。证据可以被牵回，但不会冒充长期记忆正文。
+
+---
+
+## 2. 端到端总图
 
 ```mermaid
-flowchart LR
-    SUM["副模型 N 轮自动总结"] --> LTM["longTermMemory<br/>前端 IndexedDB<br/>纯文本条目"]
-    SUM --> MEM["memory_index<br/>后端 sql.js<br/>384维向量 + 元数据"]
+flowchart TB
+    subgraph INPUT["输入"]
+        I1["聊天中的 memory_save"]
+        I2["每 N 轮小总结"]
+        I3["Phase 2 批量蒸馏"]
+        I4["人工新建/编辑"]
+        I5["文件与 Obsidian"]
+        I6["原生 Agent 工具调用"]
+    end
 
-    LTM --> |"最近 N 条<br/>直接塞 prompt"| SHORT["短期连贯<br/>'我们刚聊了什么'"]
-    MEM --> |"语义检索 / 置顶<br/>/ 工具调用"| LONG["长期召回<br/>'三周前那件事'"]
+    subgraph PROCESS["处理"]
+        P1["原子化与 group 组装"]
+        P2["去重 / 待审核 / 人工确认"]
+        P3["正文向量 + 组级影子向量"]
+        P4["scopes / hints / 情绪暗流 / 里程碑"]
+        P5["来源、片段、逐字引用校验"]
+        P6["Persona 时间四层蒸馏"]
+    end
 
-    LTM --> |"reference 模式<br/>挂载源窗口"| CROSS["跨窗口衔接"]
+    subgraph STORE["存储"]
+        S1["longTermMemory"]
+        S2["memory_index"]
+        S3["user-persona.md"]
+        S4["证据与关系表"]
+        S5["召回历史与共现边"]
+    end
+
+    subgraph RECALL["召回"]
+        R1["置顶通道"]
+        R2["关键词门卫 / 副模型意图观察"]
+        R3["Hybrid + Blended 主搜索"]
+        R4["主动浮现 Lite / Full"]
+        R5["证据回牵"]
+    end
+
+    subgraph OUTPUT["输出与反馈"]
+        O1["分区注入本轮上下文"]
+        O2["模型回复"]
+        O3["蒸馏纪"]
+        O4["访问热度 / 人审 / 合并 / 归档"]
+    end
+
+    INPUT --> PROCESS --> STORE --> RECALL --> OUTPUT
+    O4 --> STORE
 ```
 
-| | longTermMemory（工作记忆） | memory_index（长期记忆） |
+---
+
+## 3. 输入与写入
+
+### 3.1 写入入口
+
+| 入口 | 进入哪里 | 是否自动 |
 |---|---|---|
-| **存在哪** | 前端 IndexedDB，跟着窗口走 | 后端 sql.js，跟着角色/小机走 |
-| **格式** | 纯文本条目 | 384维向量 + 元数据 + 状态 |
-| **注入方式** | 最近 N 条直接塞进 prompt | 语义检索 top-K / 置顶通道 / 工具调用 |
-| **跨窗口** | `reference` 模式挂载源窗口最后 N 条 | 自动跟角色/小机走，无需特殊处理 |
-| **解决什么** | "我们刚聊了什么"（短期连贯） | "三周前那件事的细节"（长期召回） |
+| `memory_save` | `memory_index` | 模型主动调用 |
+| 每 N 轮小总结 | `longTermMemory`，并可同步长期索引 | 自动，取决于聊天设置 |
+| Phase 2 legacy | 从一批小总结提取长期原子记忆 | 自动，模式开关决定 |
+| Phase 2 persona | 更新 `user-persona.md`，不再追加画像碎片 | 自动，模式开关决定 |
+| 记忆工作台手写 | `memory_index` | 人工 |
+| 文件蒸馏 | `memory_staging`，批准后进入长期库 | 人审 |
+| Obsidian / 上传文件 | 证据层，可再与记忆建链 | 扫描或人工 |
+| 共读与专用侧路 | 长期记忆或项目/文件知识层 | 按各自入口 |
 
-换窗口时：`reference` 模式 + `mountMemoryCount` 条挂载 = 短期无缝。长期需要回忆 = 角色/小机用工具去 memory_index 里找。
+自动写入不是所有聊天表面无条件常驻：角色聊天的小总结还要满足自动总结开关、轮次阈值和可用副模型；同步长期索引还会经过重要度门槛。`memory_save` 的写链和工具定义已经存在，但模型侧能否调用仍受能力挂载与权限策略控制。
 
----
+### 3.2 写入咽喉
 
-## 2. 数据模型
+长期原子记忆的主写入链负责：
 
-### 2.1 memory_index — 原子记忆表（核心）
+- 统一用户、角色、空间和项目归属；
+- 正规化 importance、valence、arousal 和扩展元数据；
+- 生成或保留 `group_id`；
+- 做写入去重；
+- 生成本地正文向量；
+- 在需要时更新组级影子向量和提示向量；
+- 保留来源与人工状态。
 
-> `server/db.js`
+不是所有入口都天然产出相同元数据：
 
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| id | INTEGER PK | — |
-| user_id | TEXT | 用户 |
-| character_id | TEXT | 角色/小机（或 `shared` 共享池） |
-| content | TEXT | 记忆正文（浓缩） |
-| embedding | TEXT | 384维 bge-small-zh 向量（JSON） |
-| importance | REAL [0,1] | 长期重要度（手调或写入时定） |
-| group_id | TEXT | 组 ID（N轮总结等多原子组） |
-| space_key | TEXT | 空间键（多端隔离用） |
-| visibility | TEXT | `shared_public_fact` / `private_character` / `private_space` / `archive_only` |
-| source_type | TEXT | `llm_tool` / `phase2_distill` / `auto_summary` / `manual` / ... |
-| **pinned** | INTEGER 0/1 | 置顶（独立通道，不参与衰减） |
-| **resolved_at** | TEXT NULL | 已解决时间（NULL=未解决） |
-| **activation_count** | INTEGER | 被想起次数（每次召回+1，置顶在场不计） |
-| **valence** | REAL [0,1] NULL | 情绪效价（NULL=未标注→0.5兜底） |
-| **arousal** | REAL [0,1] NULL | 情绪唤醒度 |
-| **meta_json** | TEXT NULL | 蒸馏元数据 JSON（scope/emotionTag/entities/pending/reason） |
-| last_accessed_at | TEXT | 最近被想起时间 |
-| participants_json | TEXT | Discord 参与者 tokens |
-| timestamp | TEXT | 创建时间 |
+- `memory_save` 可显式写入数值 valence/arousal；
+- 当前 Phase 2 重点产出 `scopes`、`recall_hints`、`save_reason`、`emotional_undercurrent` 与 `undercurrent_polarity`；
+- Phase 2 并不会自动补齐数值 valence/arousal；
+- 历史记忆缺少新字段时按中性和不惩罚原则兼容，不能因为旧数据没有 scope 就失去召回资格。
 
-**多角色/小机隔离**：`character_id` 决定一条记忆属于哪个角色/小机。检索时按角色/小机过滤，角色/小机 A 的私有记忆不会出现在角色/小机 B 的召回结果里。`shared` 池是全家共享的公共事实（比如"主人讨厌香菜"），所有角色/小机都能检索到。`visibility` 四档进一步控制可见范围——`private_space` 的记忆只在特定空间（如某个 Discord 频道）可见。
-
-### 2.2 memory_links — 关系表
-
-| 字段 | 语义 |
-|------|------|
-| left_kind | `row` / `group` / `ai` / `obsidian` / `obsidian_chunk` / `source_context` |
-| left_key | 左端 ID |
-| right_kind | 同上 |
-| right_key | 右端 ID |
-| relation_type | `related` / `prerequisite` / `contradicts` / `merged_into` / `source` / `evidence` |
-| meta_json | `{injectMode, snippet}` 注入模式配置 |
-
-### 2.3 obsidian_documents — 文档索引表
-
-| 字段 | 语义 |
-|------|------|
-| id (= azoth_doc_id) | 稳定身份，不随改名变 |
-| vault_key (= serverId) | MCP 服务稳定 ID |
-| vault_name | 显示名（可改不断链） |
-| path | 当前路径（移动时更新） |
-| title | 文件标题 |
-| content_hash | 内容指纹（变动检测） |
-| content_text | 正文存档（≤60000字，full 档数据源） |
-| doc_type | `daily` / `reference` / `evidence` / `upload` |
-| status | `active` / `missing`（失联标状态不删行） |
-| id_written | frontmatter 是否写回 |
-
-**每角色/小机独立 vault**：每个角色/小机可以绑定自己的 Obsidian vault（通过 MCP 服务），扫描索引和证据关联都是角色/小机级别的。角色/小机 A 的 vault 里的笔记不会被角色/小机 B 的记忆关联到。
-
-### 2.4 memory_staging — 待审核表
-
-蒸馏/Phase2 产出 → 进 staging → 工作台人审 approve/reject → 通过后进 memory_index。
-
-### 2.5 memory_group_embeddings — 组级影子向量表
-
-> Qwen3-0.6B 替代/补充 legacy bge-small-zh 的 per-atom 向量。支持 A/B 评估。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| group_id | TEXT | 对应 memory_index.group_id |
-| provider | TEXT | 模型提供方 |
-| model | TEXT | 模型名（如 `Qwen3-0.6B`） |
-| dim | INTEGER | 向量维度 |
-| version | INTEGER | 版本号（支持灰度切换） |
-| embedding | TEXT | 组级聚合向量（JSON） |
-
-当前状态：**644 组已重新向量化**。Blended 召回引擎用此表做 RRF 融合的 Qwen3 车道。
-
-### 2.6 memory_link_suggestions — 关系建议表（8-b）
-
-> 角色/小机提议"A 和 B 可能有关系"→ 进此表 → 人审批通过才真建 memory_links 条目。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| id | INTEGER PK | — |
-| character_id | TEXT | 提议角色/小机 |
-| left_kind / left_key | TEXT | 左端点 |
-| right_kind / right_key | TEXT | 右端点 |
-| relation_type | TEXT | 建议的关系类型 |
-| reason | TEXT | 角色/小机给出的理由 |
-| status | TEXT | `pending` / `approved` / `rejected` |
-| meta_json | TEXT | 扩展信息 |
-
-**铁律**：`merged_into` 关系永不暴露给 AI，只有人能操作。
-
-### 2.7 source_contexts — 记忆出生证（7C）
-
-> 每条记忆的"出生证"——记录它诞生于哪段对话、什么时间窗口、谁参与了。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| id | INTEGER PK | — |
-| memory_id / group_id | TEXT | 关联的记忆 |
-| conversation_window | TEXT | 对话窗口标识 |
-| time_start / time_end | TEXT | 源对话时间范围 |
-| speakers | TEXT | 参与者 |
-| status | TEXT | `active` / `drifted` / `missing` / `snapshot_only` |
-| meta_json | TEXT | 扩展信息 |
-
-### 2.8 source_chunks — 文档段落证据（7B-A）
-
-> 从 Obsidian 文档切出的段落级证据块，带字符坐标、内容哈希、标题路径。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| id | INTEGER PK | — |
-| doc_id | TEXT | 关联的 obsidian_documents.id |
-| char_start / char_end | INTEGER | 在原文中的字符范围 |
-| content_text | TEXT | 段落内容 |
-| content_hash | TEXT | 内容指纹（变动检测） |
-| heading_path | TEXT | 标题层级路径 |
-| status | TEXT | `active` / `stale` / `missing` |
-
-### 2.9 source_chunk_embeddings — 段落多模型向量（7B-B）
-
-> 为 source_chunks 提供多模型向量（bge-m3 / Qwen3-0.6B），支持 A/B 评估。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| chunk_id | INTEGER | 关联的 source_chunks.id |
-| provider / model / dim / version | TEXT/INT | 模型标识 |
-| embedding | TEXT | 向量（JSON） |
-
-### 2.10 memory_recall_context — 召回语境记录（8-c）
-
-> 记录每条记忆在什么查询语境下被召回过。query_hash = MD5(query[:200])。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| memory_id | INTEGER | 被召回的记忆 |
-| query_hash | TEXT | 查询指纹 |
-| recalled_at | TEXT | 召回时间 |
-
-启用"上次你问这个话题时，也想起了 X"的语境关联能力。
-
-### 2.11 memory_co_recall — 赫布行为边（8-c）
-
-> 记忆间的 Hebbian 行为边——同场召回的记忆自动连边，越频繁越强。
-
-| 字段 | 类型 | 语义 |
-|------|------|------|
-| memory_a / memory_b | INTEGER | 共同召回的两条记忆 |
-| strength | REAL | 连边强度（+0.05/次，上限 5.0） |
-| co_count | INTEGER | 共同召回次数 |
-| last_co_at | TEXT | 最近共同召回时间 |
-| stability | REAL | 稳定性（间隔重复增长） |
-
-**清理机制**：启动后 30s + 每 24h，清理 >90 天的 recall_context 和弱 co_recall 边。
-
----
-
-## 3. 核心数据流
-
-### 3.1 记忆写入（四条路）
+### 3.3 Phase 2 的两种输出
 
 ```mermaid
 flowchart LR
-    A["① LLM memory_save<br/>对话中自动存"] --> T["tools/memory.js"]
-    B["② Phase2 蒸馏<br/>小总结产出"] --> T
-    C["③ 文件导入蒸馏"] --> S["services/memory-import.js"] --> ST["memory_staging"]
-    D["④ 前端手写<br/>POST 直写"] --> R["routes/memory-index.js"]
-
-    T --> IDX["indexMemoryAtomics()"]
-    ST --> |"批准"| IDX
-    R --> IDX
-    IDX --> DB["memory_index<br/>+ embedding 向量化"]
+    A["一批合格小总结"] --> MODE{"PHASE2_OUTPUT_MODE"}
+    MODE -->|"legacy（未配置时默认）"| L["提取长期原子记忆<br/>写入 memory_index"]
+    MODE -->|"persona"| P["读旧画像 → 生成结构化 patch<br/>写回 user-persona.md"]
+    MODE -->|"off"| X["不蒸馏、不推进游标"]
+    P --> SNAP["写前快照 + 证据来源旁路"]
 ```
 
-**关键**：四条写入路都经过 `indexMemoryAtomics()`，**valence/arousal/meta_json 全套透传**。
+Persona 模式的重要护栏：
 
-### 3.2 记忆召回（三个池 + 一个通道 + 浮现层）
+- 旧格式无法安全识别时暂停，不吞材料；
+- 临时失败保留游标，后续重试；
+- 写前保存快照；
+- 人工编辑优先；
+- 画像证据锚不混进正文；
+- 更新后使相关提示缓存失效。
 
-```mermaid
-flowchart TD
-    Q["用户消息 / 回忆词触发"] --> |"强/弱触发分级"| HS["hybridSearch()<br/>四因子→v2公式"]
+---
 
-    HS --> |"top-K"| P2["② 本轮检索池"]
-    
-    PIN["getPinnedMemories()"] --> |"≤5条/角色/小机"| P1["① 置顶核心池<br/>每轮稳定在场"]
+## 4. 存储结构
 
-    SURF["memorySurfacing()"] --> |"💭 浮现池<br/>lite + full 双层"| P3["③ 主动浮现池<br/>带原因标签"]
+### 4.1 核心记忆
 
-    P2 --> INJ["prompt 注入"]
-    P1 --> INJ
-    P3 --> INJ
-    
-    OBS["Obsidian 锚点"] --> |"📎 路径/片段/全文"| INJ
+| 载体 | 职责 |
+|---|---|
+| `memory_tables` | 工作记忆和旧兼容数据容器 |
+| `memory_index` | 原子长期记忆、向量、状态、归属与元数据 |
+| `memory_group_embeddings` | Qwen3 组级影子向量 |
+| `memory_hint_embeddings` | `recall_hints` 的独立影子向量 |
+| `memory_scope_cooccurrence` | 每用户 scope 共现快照 |
 
-    subgraph "沉底"
-        RES["resolved 记忆<br/>score × 0.3"]
-        ARC["archive_only<br/>完全隐藏"]
-    end
+`memory_index` 的关键字段分为五组：
 
-    HS -.-> |"显式回忆词<br/>不打折"| RES
+| 类别 | 关键字段 |
+|---|---|
+| 所有权 | `user_id`、`character_id`、`space_key`、`project_id` |
+| 内容 | `content`、`group_id`、`timestamp`、`source_type` |
+| 召回 | `embedding`、`importance`、`last_accessed_at`、`activation_count` |
+| 生命状态 | `pinned`、`resolved_at`、`visibility` |
+| 情绪与语义 | `valence`、`arousal`、`meta_json` |
+
+当前本地主向量为 bge-small-zh-v1.5 **512 维**。Qwen3 组级与提示影子向量为 **1024 维**。不同模型、提供方、维度和版本分桶保存，不混算。
+
+### 4.2 关系与人审
+
+| 载体 | 职责 |
+|---|---|
+| `memory_links` | 记忆组、文档、来源之间的稳定边 |
+| `memory_link_suggestions` | 模型提出的关系建议，人审后才建真边 |
+| `memory_staging` | 文件蒸馏等候选的待审核箱 |
+
+合并与建链遵守“人最终确认”：
+
+- 模型可以建议关系，不能自行批准；
+- 相似记忆不会自动合并；
+- `merged_into` 等维护关系不暴露给模型；
+- 组重建时保留状态和扩展元数据。
+
+### 4.3 证据
+
+| 载体 | 职责 |
+|---|---|
+| `obsidian_documents` | 文档稳定身份、当前位置、内容和失联状态 |
+| `source_contexts` | 记忆诞生于哪段对话的“出生证” |
+| `source_chunks` | 带字符坐标、标题路径和内容哈希的证据片段 |
+| `source_chunk_embeddings` | 文档片段的多模型影子向量 |
+
+证据与记忆正文分离。文档移动或改名不改变稳定身份；原文变化时可标记 stale/drifted，而不是继续假装旧片段仍可靠。
+
+### 4.4 浮现历史
+
+| 载体 | 职责 |
+|---|---|
+| `memory_recall_context` | 记录某条记忆曾在什么查询语境被召回 |
+| `memory_co_recall` | 记录多条记忆同场被想起形成的行为边 |
+
+这些表帮助主动浮现产生“上次聊这个话题时还想起了什么”和“哪些记忆经常一起出现”的信号。它们不是前端关系图谱。
+
+### 4.5 用户画像的旁路数据
+
+`persona-distiller` 另外维护：
+
+- `user_persona_snapshots`：画像写回前的快照；
+- `user_persona_provenance`：各时间层由哪些记忆组支持、是否因人工编辑变旧。
+
+画像正文仍在角色包内的 `user-persona.md`，数据库只保存快照和证据锚。
+
+---
+
+## 5. 所有权与可见性
+
+### 5.1 角色与共享
+
+当前共享池规范不是字符串 `shared`：
+
+```text
+角色私有：character_id = 当前角色
+公共事实：character_id IS NULL
+          且 visibility = shared_public_fact
 ```
 
-**多角色/小机置顶隔离**：每个角色/小机有独立的置顶池（≤5 条/角色/小机），互不干扰。角色/小机 A 置顶的"我们的纪念日"不会出现在角色/小机 B 的 prompt 里。空间可见性在置顶通道同样生效——space B 的私有置顶不会泄进 space A。
+只有公共事实可以跨角色/空间自然放行。空角色归属并不自动等于“所有人可见”，还要通过 visibility 检查。
 
-### 3.3 召回公式 v2（灰度开关 `memoryScoringV2`）
+### 5.2 可见性
 
-```
-召回分 = 关键词得分 × 0.3
-       + 向量语义得分 × 0.4
-       + 质量得分 × 0.3      ← v1: importance×0.2+freshness×0.1 | v2: longTermWeight×0.2+heatScore×0.1
-       - resolved 沉底惩罚(×0.3, 强回忆词减免)
-```
+| 值 | 行为 |
+|---|---|
+| `shared_public_fact` | 可按公共事实规则跨上下文使用 |
+| `private_character` | 只属于对应角色 |
+| `private_space` | 还要满足具体空间 |
+| `archive_only` | 退出 AI 主动视野，只在人类管理面可见 |
 
-**热度公式（借鉴 kiwi-mem + Ombre-Brain）**：
-```
-initialTemp = min(1, 0.3 + max(importance, arousal) × 0.7)
-halfLife    = baseHalfLife × (1 + activationCount × 0.3)  // 越常想起越不易忘
-decay       = 2^(-daysSinceAccess / halfLife)
-recallBonus = min(0.2, activationCount × 0.02)
-heat        = initialTemp × decay + recallBonus
-// 冷启动保护：activationCount=0 时 30天内保底 0.3+importance×0.5
-```
+### 5.3 项目边界
 
-**长期权重**：`importance × (0.7 + 0.6 × arousal)` —— 情绪唤醒提升长期留存力。
+项目记忆带 `project_id`。项目内检索优先本项目；未进入项目的普通聊天会排除项目私有行，避免项目材料泄到无关对话。
 
-### 3.4 Blended 召回引擎（双车道 RRF 融合）
+---
+
+## 6. 召回决策
+
+### 6.1 LifeOS 网页聊天
+
+LifeOS 的自动召回链是：
 
 ```mermaid
 flowchart LR
-    Q["用户消息"] --> EMB1["bge-small-zh<br/>per-atom 384维"]
-    Q --> EMB2["Qwen3-0.6B<br/>group-level 影子向量"]
-    
-    EMB1 --> LANE1["旧车道<br/>atom cosine"]
-    EMB2 --> LANE2["新车道<br/>group cosine × 0.9"]
-    
-    LANE1 --> RRF["RRF 融合<br/>各车道 #1 保底高排名"]
-    LANE2 --> RRF
-    
-    RRF --> |"可选"| RERANK["Qwen3-Reranker<br/>top-30 → top-5"]
-    RERANK --> RESULT["最终 top-K"]
-    RRF --> RESULT
+    U["当前用户消息"] --> G{"召回门卫"}
+    G -->|"强回忆词"| A["直接召回<br/>仍可同次抽 anchors/scope"]
+    G -->|"弱触发或普通消息<br/>且分类器开启"| K["副模型意图观察"]
+    G -->|"无需回忆"| N["不跑主搜索"]
+    K --> D["should_recall<br/>anchors / time / vault<br/>scopes / valence band"]
+    A --> S["主搜索"]
+    D --> S
+    D --> F["主动浮现信号"]
 ```
 
-**召回引擎模式**（`RECALL_ENGINE` 环境变量）：
+同一次副模型观察可产出：
 
-| 模式 | 行为 |
-|------|------|
-| `old` | 仅 bge-small-zh per-atom cosine（遗产） |
-| `shadow_only` | 仅 Qwen3 group 影子（观测模式） |
-| `qwen_primary` | Qwen3 为主引擎 |
-| **`blended`**（当前默认） | **RRF 融合双车道**，Qwen3 权重 ×0.9，各车道 #1 获保底高排名 |
+- 是否需要召回；
+- 召回意图；
+- 主题锚词、时间和 vault 提示；
+- 1–3 个 `memory_scopes`；
+- 当前 `memory_valence_band`；
+- 关系权重、脆弱信号、语境模式等观察字段。
 
-**Reranker**（灰度，默认关闭）：top-30 候选 → Qwen3-Reranker 精排 → top-5。
+输出会经过白名单和失败关闭处理。它是意图观察器，不是主搜索引擎。
 
-### 3.5 召回触发器系统
+### 6.2 Discord
 
-不是每条用户消息都触发记忆检索。副模型先判断是否需要召回：
+Discord 使用 contextual search，结合语义、空间、参与者、重要度和召回策略。当前它无条件进入这条召回链，不走 LifeOS 同一套副模型意图观察。
 
-| 触发类型 | 关键词示例 | 行为 |
-|---------|----------|------|
-| **强触发**（直接召回） | 之前/上次/记得/你说过/聊过/那件事 | 直接进入 hybridSearch |
-| **弱触发**（副模型确认） | 查一下/搜一下/来着/怎么弄的 | 副模型返回 should_recall + topic_anchors + time_hint |
-| **无触发** | 今天天气/你好/随便聊 | 不召回，防止注入无关记忆 |
+因此即使主动浮现相关环境开关都打开，Discord 当前传给浮现层的仍是：
 
-副模型输出：`{ should_recall, topic_anchors, time_hint, vault_hint, confidence }`
+```text
+memoryScopes = []
+memoryValenceBand = neutral
+```
 
-### 3.6 主动浮现池（8-c · 灰度）
+Discord 主召回正常；scope 与当前情绪极性路由尚未接通。
 
-**设计目标**：让记忆从"被动被搜到"进化到"主动像人一样想起"。
+### 6.3 模型主动调用记忆工具
 
-**双层架构**：
+公开的 `memory_search` / `memory_hybrid_search` 参数目前没有 `memory_scopes` 或当前 `memory_valence_band`，执行前也不会调用副模型。
+
+所以原生 Agent 工具链可以保存、搜索、最近浏览和回看证据，但当前 **scope/情绪观察不会参与该次工具召回**。
+
+---
+
+## 7. 主搜索
+
+### 7.1 默认 Blended 双车道
 
 ```mermaid
-flowchart TD
-    MSG["用户消息"] --> LITE["Lite 层<br/>每轮都跑 · ~150ms"]
-    MSG --> |"触发了搜索"| FULL["Full 层<br/>仅搜索时"]
-    
-    subgraph "Lite 层（轻量感知）"
-        CH_A["Channel A<br/>高热度 SQL 扫描 top-10"]
-        CH_B["Channel B<br/>Qwen3 语义匹配 top-5<br/>cosine ≥ 0.5"]
-    end
-    
-    subgraph "Full 层（三信号增强）"
-        ECHO["余味 Echo<br/>AI回复→embed→搜记忆"]
-        CTX["召回上下文<br/>同 query_hash 历史"]
-        CORC["行为边 Co-recall<br/>Hebbian 共振"]
-    end
-    
-    LITE --> |"角色边界过滤<br/>冷启动保护<br/>cap 2"| INJ["💭 浮现注入<br/>带原因标签"]
-    FULL --> INJ
+flowchart LR
+    Q["查询"] --> BGE["bge-small-zh<br/>原子级 512 维"]
+    Q --> QWEN["Qwen3 Embedding<br/>组级 1024 维"]
+    BGE --> L1["关键词 + 原子语义榜"]
+    QWEN --> L2["组级影子语义榜"]
+    L1 --> RRF["RRF 融合"]
+    L2 --> RRF
+    RRF --> RR["可选 Reranker"]
+    RR --> TOP["按 group 合并后的 top-K"]
 ```
 
-**浮现评分公式**：
+默认召回引擎是 `blended`。两条车道各自排名后用 RRF 融合，避免把不同模型的原始相似度硬比较。Qwen 失败时可以退回本地车道。
+
+### 7.2 默认评分与 v2
+
+单车道默认 v1 质量分为：
+
+```text
+关键词 0.3 + 向量语义 0.4 + 重要度 0.2 + 新鲜度 0.1
 ```
-surfacingScore = (heat × 0.6 + longTermWeight × 0.4)
-  + signalBoost(echo + context + coRecall, cap 0.6)
-  + coldStart(0.3, 新重要记忆)
-  × urgency(1.5, arousal>0.7 且未解决)
-  × surfaceFatigue(0.3, 今天已浮现≥3次)
+
+当 `memoryScoringV2=true`：
+
+```text
+关键词 0.3 + 向量语义 0.4 + 长期分量 0.2 + 短期热度 0.1
 ```
 
-**随机漂移**：30% 概率浮现低热度旧记忆（recall<2），灰度默认关闭。
+其中：
 
-**注入格式**：`💭 [记忆内容] [原因标签]`，原因标签包括：余味 / 想到相关的事 / 曾在相似话题想起 / 新记忆。
+```text
+heat = initialTemp × 2^(-days / halfLife) + recallBonus
+halfLife = 7天 × (1 + activationCount × 0.3)
+longTermWeight = importance × (0.7 + 0.6 × arousal)
+```
 
-**当前状态**：`MEMORY_SURFACING` 环境变量开关，默认 OFF。角色边界修复已于 6/20 上线。
+关键边界：
+
+- `resolved_at` 在普通查询中沉底，显式回忆可减免；
+- `archive_only` 不进入 AI 召回；
+- 置顶行在普通评分前排除，避免“每轮在场”刷高 activation；
+- scope 和当前情绪极性**不进入这套主公式**；
+- arousal 只有在评分 v2 或主动浮现中才真实影响排序；
+- valence 不参与主搜索。
 
 ---
 
-## 4. 文件清单 × 职责
+## 8. 主动浮现
 
-### 4.0 数据层
+主动浮现让记忆在没有直接命中主搜索时也可能自然冒出来，但它不是默认常开功能。
 
-| 文件 | 大小 | 职责 |
-|------|------|------|
-| `server/db.js` | 78KB | **全表 schema + 迁移**：11 张记忆相关表定义 |
+### 8.1 两层结构
 
-### 4.1 后端 — 服务层
-
-| 文件 | 大小 | 职责 |
-|------|------|------|
-| `services/memory-records.js` | 85KB | **核心**：CRUD / patchMemoryState / updateMemory(重向量化) / memory_links CRUD / mergeMemories / group重建保留状态 |
-| `services/memory-import.js` | 8KB | 文件蒸馏（副模型抽≤5条候选→staging） |
-| `services/obsidian-index.js` | 26KB | Vault BFS扫描 / azoth_doc_id 身份追踪 / 失联检测 / 旧格式兼容门 |
-| `services/phase2-extractor.js` | 8KB | Phase2 蒸馏元数据抽取 |
-| `services/wakeup-heat.js` | 12KB | wakeup 路径的热度系统 |
-| `services/memory-surfacing.js` | 24KB | **主动浮现池**：lite/full 双层 + 三信号(echo/context/co-recall) + 评分公式 + 随机漂移 + 清理 cron |
-| `services/memory-injection-format.js` | 9KB | 召回/浮现记忆的 prompt 注入格式化 |
-| `services/memory-group-embeddings.js` | 9KB | Qwen3 组级影子向量管理（644组已重建） |
-| `services/memory-link-suggestions.js` | 8KB | 关系建议箱（角色提议→人审→建链） |
-| `services/source-context.js` | 33KB | 记忆出生证管理（对话窗口溯源） |
-| `services/source-chunks.js` | 19KB | 文档段落证据（hash漂移检测） |
-| `services/evidence-quote.js` | 2KB | 逐字引用机械验证（verified/unverified/absent） |
-
-### 4.2 后端 — 工具层（LLM 可调用）
-
-| 文件 | 大小 | 职责 |
-|------|------|------|
-| `tools/memory.js` | 42KB | `memory_save` 工具：写入链（含 valence/arousal/meta 透传）+ Jaccard 75% 写入去重 |
-| `tools/memory-search.js` | 94KB | `memory_search` / `memory_recall`：**blended 双车道 RRF** + hybrid 四因子 + contextual + heatScore + 置顶通道 + resolved 惩罚 + Obsidian 锚点 + Reranker(灰度) |
-| `tools/merge-memory.js` | 9KB | 相似簇发现 + 合并端点 |
-| `tools/obsidian-wakeup.js` | 15KB | 7个 Obsidian MCP 工具（3读4写）+ 角色/小机 vault 绑定 |
-
-### 4.3 后端 — 路由层
-
-| 文件 | 大小 | 职责 |
-|------|------|------|
-| `routes/memory-index.js` | 57KB | 完整 REST：列表/搜索/分页/stats / PATCH(6字段) / PUT content(重向量化) / GET links / POST links / DELETE links / PATCH links(注入模式) / similar-groups / merge / POST直写 |
-| `routes/memory-staging.js` | 9KB | staging approve/reject + 批量清积压 |
-| `routes/memory-chain.js` | 14KB | N轮对话链 + 小总结 auto_summary |
-| `routes/obsidian-docs.js` | 3KB | Obsidian 文档索引 REST |
-| `routes/ai.js` | 431KB | **聊天主路由**：记忆注入拼装（置顶段 + 检索段 + 浮现段 + 锚点段） |
-
-### 4.4 前端
-
-| 文件 | 大小 | 职责 |
-|------|------|------|
-| `memory-desk.js` | 105KB | **记忆工作台**：详情抽屉(编辑/状态/情绪/链接/元数据) + staging审核箱 + 相似整理面板 + 手动新建 + 文件导入 + 注入模式开关 |
-| `memory-desk.css` | 18KB | 工作台样式，`memdesk-` 前缀隔离 |
-| `script.js` | 2.3MB | 巨石主体，记忆索引列表页（mi-系列）在此 |
-
-### 4.5 维护/验证脚本
-
-| 文件 | 项数 | 职责 |
-|------|------|------|
-| `scripts/verify-memory-states.js` | **194项** | 全字段/全路径 smoke 测试 |
-| `scripts/verify-memory-desk.js` | **86项** | 前端工作台接线 smoke |
-| `scripts/verify-memory-records.js` | — | 基础 CRUD 回归 |
-| `scripts/verify-memory-runtime-tools.js` | — | 运行时工具集成回归 |
-| `scripts/compare-memory-scoring.js` | — | v1/v2 公式离线对比 |
-| `scripts/backfill-memory-meta.js` | — | 历史 auto_summary 元数据回填 |
-
----
-
-## 5. 施工状态
-
-| 阶段 | 名称 | 状态 | 核心产出 |
-|----|------|------|----------|
-| **1** | 记忆状态字段 + API + link 扩展 | ✅ 已上线 | 5新字段 + patchMemoryState + link新kind/relation |
-| **2** | PWA 记忆工作台 | ✅ 已上线 | memory-desk.js/css + staging审核箱 + 批量归档 |
-| **2.5** | 蒸馏元数据透明化 | ✅ 已上线 | meta_json 列 + 四条写入路全通 |
-| **3** | 热度系统 + 召回公式v2 + 置顶通道 | ✅ 已上线 | heatScore + 灰度toggle + getPinnedMemories |
-| **4** | 相似记忆合并工作台 | ✅ 已上线 | findSimilarClusters + mergeMemories + 工作台面板 |
-| **5** | Obsidian 文档索引第一期 | ✅ 已上线 | obsidian_documents表 + BFS扫描 + 身份追踪 + 召回联动 |
-| **6** | 手动记忆 + 文件导入 | ✅ 已上线 | 蒸馏导入 + 整篇直存 + 上传进证据层 |
-| **7A** | 注入模式开关 + 手动片段锚点 | ✅ 已上线 | path/snippet/full 三档 + content_text存档 |
-| **7B** | 原文层证据链 | ✅ 已上线(灰度) | source_chunks + source_chunk_embeddings + chunk推荐 |
-| **7C** | 记忆出生证 | ✅ 已上线 | source_contexts 对话窗口溯源 |
-| **8-a** | 逐字引用证据 | ✅ 已上线 | evidence_quote 机械验证（verified/unverified/absent） |
-| **8-b** | 关系建议箱 | ✅ 已上线 | memory_link_suggestions（角色提议→人审→建链） |
-| **8-c** | 主动浮现池 | ✅ 已上线(灰度) | 双层架构(lite/full) + 三信号 + surfacingScore + 角色边界(6/20修复) |
-| **—** | Blended 召回引擎 | ✅ 已上线 | bge + Qwen3 RRF 融合 + 644组影子向量 |
-| **—** | 召回触发器 | ✅ 已上线 | 强/弱触发词 + 副模型确认 |
-
-### 灰度开关矩阵
-
-| 开关 | 控制方式 | 默认 | 管什么 |
-|------|---------|------|--------|
-| `memoryScoringV2` | PWA toggle | OFF | 热度评分 v2 公式 |
-| `MEMORY_SURFACING` | 环境变量 | OFF | 主动浮现池全局开关 |
-| `RECALL_ENGINE` | 环境变量 | `blended` | 召回引擎模式 |
-| `memoryReranker` | 灰度 | OFF | Qwen3 Reranker 精排 |
-| 随机漂移 | 代码内 | OFF | 低热度旧记忆浮现 |
-
----
-
-## 6. 备选池（未排期）
-
-> 以下是真正尚未实现的功能。
-
-### Enso 治理层运行时
-当前 `enso-governance.js` 是纯数据声明（Guard/Trace/Lessons 三层），**运行时调度器尚未实现**。目标：防止 Agent 自我反思污染人类真实记忆，读写工具受审批控制。
-
-### Dream / 月度整合
-凌晨 consolidation 机制——LLM 消化近期记忆、发现矛盾、提炼模式。目前无实现。
-
-### 记忆软化（resolution 递降）
-kiwi-mem 的思路：记忆不是"在/不在"的二元态，而是 1.0→0.5→0.3 渐变褪色。这是 nigredo——腐化分解再结晶——的架构位。留着以后评估。
-
-### Timeline / 关系图谱可视化
-前端记忆时间线视图 + 关系图谱交互式可视化。
-
-### Auto-lock（自动置顶建议）
-高 access + 高 diversity 的记忆 → 建议 pinning。
-
-### Phase 2b：蒸馏自动绑源
-蒸馏候选自动附上正确的 source_context 范围。当前需手动关联。
-
-### 证据链一致性维护
-编辑/合并/拆分记忆时，自动维护 source_contexts / source_chunks / evidence_quote 的一致性。
-
-### 情绪调制浮现
-valence-based 的浮现优先级调制——情绪共鸣的记忆在对应情绪语境下更容易浮现。
-
-### 统一侧路召回
-project_memory / ChatGPT MCP 等旁路的召回统一纳入主搜索管道。
-
----
-
-## 7. 架构特色与设计哲学
-
-### 7.1 多角色/小机原生架构
-
-AZOTH 不是"单角色/小机系统加了个角色/小机选择器"——多角色/小机隔离渗透在每一层：
-
-| 层级 | 多角色/小机支持 |
-|------|-----------|
-| **记忆存储** | `character_id` 隔离 + `shared` 公共池 |
-| **检索召回** | 按角色/小机过滤，A 的私有记忆不泄给 B |
-| **置顶通道** | 每角色/小机独立 ≤5 条，互不干扰 |
-| **主动浮现** | 角色边界过滤，他人私有记忆不会浮现 |
-| **Obsidian 绑定** | 每角色/小机可绑独立 vault |
-| **空间可见性** | `private_space` 隔离到频道/空间级别 |
-| **蒸馏元数据** | scope 标注所属范围（角色/小机级/共享级） |
-| **合并操作** | 双 ownership 校验（user + character） |
-
-对于一对一用户：所有记忆天然归同一个 `character_id`，零额外配置。对于多机之家：每位角色/小机有自己的记忆世界，共享事实通过 `shared` 池自然流通。
-
-### 7.2 四个正交状态维度
-```
-pinned       = 通道（在不在场）
-resolved     = 事态（事情完了没）
-archive_only = 可见性（藏不藏）
-importance   = 分量（多重要）
-```
-互不覆盖。一条记忆可以同时 resolved 且 importance 高（"那个修好的大 bug"）。
-
-### 7.3 组记忆铁律
-- 操作目标 = group，不是组内 atom
-- atom 级建链被后端拦截（group 重写会删旧 atom 连带链接）
-- group 重建保留全部状态字段 + meta_json
-
-### 7.4 证据层三档注入
-| 档位         | 行为                   | 数据源                             |
-| ---------- | -------------------- | ------------------------------- |
-| `path`（缺省） | 只亮路径，角色/小机自己用工具取        | —                               |
-| `snippet`  | 人工圈好的片段随 📎 进 prompt | meta_json.snippet               |
-| `full`     | 存档全文进 prompt         | obsidian_documents.content_text |
-
-**设计原则**：算法只配菜单，需不需要是人格的事。默认只点亮路径，把"要不要深挖"的决定权留给角色/小机；手动设 snippet/full，是人替最珍贵的几条记忆预先接好了粗电线。
-
-### 7.5 "人工确认"铁律
-- 合并：绝不自动，确认永远在人
-- 建链建议：角色/小机只能提议，人审通过才真建
-- staging 审核：蒸馏候选必须过人
-
-### 7.6 原生 Agent 接入适配
-
-当接入自带上下文压缩的 agent 系统（Codex / Claude Code / Devin 等）时，记忆系统的两层分工发生变化：
-
-| 层 | API 聊天模式（现在） | 原生 Agent 模式 |
+| 层 | 什么时候跑 | 候选信号 |
 |---|---|---|
-| **longTermMemory** | 挂载最近 N 条进 prompt | **砍掉** — agent 自己管短期连贯 |
-| **memory_index 注入** | 预检索结果塞进 system prompt | **改为 MCP 工具** — agent 主动调 `memory_search` |
-| **pinned 通道** | 每轮自动注入 | agent 初始化时调一次 `get_pinned_memories` |
-| **自动总结写入** | 双写（前端 + 后端） | **单写** memory_index |
-| **热度/状态** | 不变 | **更重要** — agent 自己不会"惦记" |
-| **证据锚定** | 不变 | 不变 |
-| **工作台** | 不变 | 不变 |
+| Lite | 每轮，在浮现总开关打开时 | 高热、冷启动、当前消息语义 |
+| Full | 主搜索触发后 | 余味、召回语境、共召回边、锚词、scope、提示向量、整库冷候选 |
 
-架构变化示意：
+### 8.2 Scope 路由
 
+记忆元数据可以携带多个 scopes。当前消息的意图 scopes 与候选记忆相交时：
+
+- 第一意图域命中可获得更高的正向乘数；
+- 其他意图域命中获得较小正向乘数；
+- 不匹配不受惩罚；
+- 整库冷候选通道可补入低热但同域的旧记忆；
+- `recall_hints` 既可做文本提示，也可有独立影子向量；
+- scope 共现快照可帮助跨域联想；
+- 多候选还会做多样性控制，避免单域垄断。
+
+这保证了新元数据增强召回，但不会伤害没有标签的历史记忆。
+
+### 8.3 情绪同频
+
+情绪调节浮现已经实现，条件是：
+
+1. 主动浮现打开；
+2. scope 路由打开；
+3. 当前意图包含 emotion；
+4. 候选记忆也包含 emotion；
+5. 情绪暗流开关打开；
+6. 当前消息与候选记忆的正/负极性一致。
+
+满足时，候选获得 `+0.08` 的情绪同频加权，并在注入理由中显示“情绪同频”。
+
+候选极性优先读取 `undercurrent_polarity`；缺失时可从数值 valence 退化推断。当前只对 positive/negative 明确同频加分，mixed/neutral 不会硬凑。
+
+这不是情绪记忆改写，也不是长期情绪曲线；它只改变候选浮现优先级。
+
+### 8.4 注入理由
+
+浮现记忆以独立格式进入上下文，例如：
+
+```text
+💭 [记忆内容] [余味 / 相似话题 / 行为共振 / 同域 / 场景匹配 / 情绪同频]
 ```
-API 模型（system prompt 注入）:
-  prompt = 人设 + 世界书 + longTermMemory + memory_index检索 + 浮现 + 锚点
-                            ↑ 预塞             ↑ 预塞
 
-原生 Agent（MCP 工具暴露）:
-  agent context = agent 自管
-  memory_index  = MCP tool（agent 需要时主动调用）
-  pinned        = 初始化读取
-  evidence      = MCP tool（obsidian_read 等）
-```
-
-**伴侣场景注意**：任务型 agent 的压缩优化目标是"完成当前任务"，会主动丢弃它认为无关的情感细节。但 `"上次聊天你哭了"` 这类信息在伴侣场景里恰恰是记忆的本体。因此接入 agent 时，关键对话仍需主动 `memory_save`，热度和置顶机制反而成为防止 agent 遗忘的最后防线。
+这样模型和人都能区分“主搜索找到的记忆”和“系统主动联想到的记忆”。
 
 ---
 
-> **总结**：记忆系统从"能搜"升级到"有状态 + 有热度 + 有证据 + 有工作台 + 主动浮现 + 双引擎召回 + 多角色原生 + agent 可接入"。当前核心命题已从"被动被搜到"推进到"主动像人一样想起"（8-c 浮现池灰度运行中）。下一阶段：Enso 治理层落地、Dream 整合机制、记忆软化。
+## 9. 证据回牵
+
+### 9.1 三档注入
+
+| 档位 | 行为 |
+|---|---|
+| `path` | 只给文档路径与标题，需要时再读 |
+| `snippet` | 注入人工选择或可靠定位的片段 |
+| `full` | 注入存档全文，适合少量重要材料 |
+
+默认以路径为主，避免把整篇文档长期塞入上下文。
+
+### 9.2 证据可靠性
+
+- 出生证记录源对话范围和参与者；
+- 文档片段记录字符坐标、标题路径和内容哈希；
+- 原文变化时标记 stale/drifted/missing；
+- `evidence_quote` 必须能在原文中逐字找到，才能标记 verified；
+- 记忆命中后，相关证据由搜索返回层统一附着，网页自动注入、Discord 和工具消费方可以共享同一结果结构。
+
+---
+
+## 10. 输出与蒸馏纪
+
+### 10.1 提示词分区
+
+典型 LifeOS 链会把以下内容分区加入本轮上下文：
+
+```text
+角色身份 / 世界知识
+用户画像
+工作记忆
+置顶记忆
+本轮主召回
+主动浮现
+Obsidian / 文件原文证据
+```
+
+普通召回、置顶、浮现和证据不是同一来源，也不应混成一段无法解释的文本。
+
+### 10.2 蒸馏纪
+
+本轮回复完成时会生成只读快照，包含：
+
+- 意图观察是否运行、耗时与状态；
+- 是否触发召回；
+- 使用的召回引擎；
+- 被激活的 scope 及贡献；
+- 主召回、Full/Lite 浮现数量；
+- 浮现原因；
+- 证据和推荐片段数量；
+- 本轮上下文模式。
+
+快照挂在本轮消息 metadata 中供界面查看。发送下一轮给模型前会剥离，不把观察数据循环污染上下文。
+
+### 10.3 v3 live 的额外边界
+
+v3 live 上下文编译目前默认关闭。开启后普通召回仍可由编译器保留，但置顶、主动浮现等额外动态段还受 `LIFEOS_V3_LIVE_RESTORE_DYNAMIC_INJECTION` 控制。该恢复开关默认关闭，因此不能把 v3 live 与普通注入链视为完全等价。
+
+---
+
+## 11. 生命周期：热度不是软化
+
+### 11.1 当前真实机制
+
+```text
+pinned       = 是否走稳定在场通道
+resolved_at  = 事情是否结束
+visibility   = 谁能看、AI 是否还能主动看
+importance   = 这件事本身多重要
+heat         = 最近是不是容易被想起
+```
+
+这些维度彼此正交。一条记忆可以既 resolved 又重要，也可以 pinned 但只对某个角色可见。
+
+### 11.2 不自动删除、不自动模糊正文
+
+当前热度只影响召回难易：
+
+- 时间会让普通记忆的短期热度下降；
+- 真正召回会增加 activation 并延长半衰期；
+- 新记忆有冷启动保护；
+- 人可以置顶、取消置顶、标记 resolved、归档或合并；
+- 系统不会因为热度下降就改写正文、删减细节或把 resolution 从 1.0 降到 0.5。
+
+因此：
+
+> **热度衰减 ≠ 记忆软化。**
+
+---
+
+## 12. 人类管理面
+
+记忆工作台当前提供：
+
+- 分页、筛选和搜索；
+- 详情抽屉；
+- 正文、重要度、情绪与扩展元数据编辑；
+- 置顶、resolved、归档；
+- 来源、证据和关系列表；
+- 待审核箱；
+- 相似组整理与人工合并；
+- 手动新建和文件导入；
+- 用户画像阅读与来源透明度入口。
+
+### 12.1 时间浏览
+
+工具层已有 `memory_recent` 等按时间倒序和相对日期浏览能力，并做组级合并。当前没有专用的前端时间线视图。
+
+### 12.2 关系浏览
+
+数据层已有 `memory_links`、关系建议、人审建链和详情抽屉中的关系列表。当前没有节点—边式交互图谱画布。
+
+---
+
+## 13. 开关与默认态
+
+| 能力 | 控制 | 未配置/新用户默认 | 说明 |
+|---|---|---|---|
+| 主召回引擎 | `MEMORY_RECALL_ENGINE` | `blended` | 非法值退回安全模式 |
+| 副模型意图观察 | PWA `autoMemoryIntentClassifier` | OFF | 主动浮现开启时服务端会需要它，但前端明确值仍重要 |
+| 召回评分 v2 | PWA `memoryScoringV2` | OFF | 打开后 arousal 进入热度/长期分量 |
+| 主动浮现 | PWA `memorySurfacing` + `MEMORY_SURFACING` | PWA 明确 OFF | 前端显式 false 会压过服务端环境值 |
+| Scope 路由 | `MEMORY_SURFACING_SCOPE_ROUTE` | OFF | 只增强浮现侧 |
+| 情绪暗流 | `MEMORY_SURFACING_UNDERCURRENT` | OFF | 还要求 emotion scope |
+| Hint 向量 | `MEMORY_SURFACING_HINT_EMBED` | OFF | 独立影子向量 |
+| Scope 共现 | `MEMORY_SURFACING_COOCCURRENCE_AUTO` | OFF | 每用户动态共现 |
+| 随机漂移 | `MEMORY_SURFACING_DRIFT` | OFF | 稀疏场景随机旧记忆 |
+| Reranker | `MEMORY_RERANKER` / 请求配置 | OFF | 候选精排 |
+| Phase 2 输出 | `PHASE2_OUTPUT_MODE` | `legacy` | 可设 persona / legacy / off |
+| v3 live | `LIFEOS_V3_LIVE` | OFF | 新上下文编译链 |
+| v3 live 动态补回 | `LIFEOS_V3_LIVE_RESTORE_DYNAMIC_INJECTION` | OFF | 控制置顶/浮现等额外段 |
+
+这张表描述的是代码默认，不代表某台线上机器当前实际环境值。要证明生产启用状态，必须另查运行配置与真实请求轨迹。
+
+---
+
+## 14. 三条消费链的真实差异
+
+| 能力 | LifeOS 自动链 | Discord 自动链 | 原生 Agent 工具链 |
+|---|---|---|---|
+| 主搜索 | 有 | 有，走 contextual | 有 |
+| 副模型判断是否召回 | 可选 | 不走同一门卫 | 不走 |
+| 当前 scope | 可产出 | 当前为空 | 公共工具参数无入口 |
+| 当前情绪极性 | 可产出 | 当前为 neutral | 公共工具参数无入口 |
+| Scope/情绪进入主搜索 | 否 | 否 | 否 |
+| Scope/情绪增强主动浮现 | 开关齐全时可以 | 当前没有有效输入 | 当前没有有效输入 |
+| 证据锚 | 有 | 有 | 搜索结果可携带 |
+| 蒸馏纪 | 有 | 有限/按聊天主路 | 无 PWA 界面 |
+
+因此“scope 与情绪识别已经做了”是真话；“它已贯穿所有入口”是假话。
+
+---
+
+## 15. 旧提案清退
+
+### 15.1 记忆软化
+
+**状态：未实现，未排期。**
+
+旧提案里的 resolution 1.0→0.5→0.3 指正文逐渐失去分辨率。当前系统没有这类字段、改写任务或压缩器。现有热度系统已经能让记忆逐渐不易被想起，同时保留原文完整性。
+
+处理：不再写成“下一阶段”；只在未来出现明确产品缺口时重新评估。
+
+### 15.2 Enso
+
+**状态：声明态，`executable=false`。**
+
+现有 Enso 代码提供 Guard / Trace / Lessons 的声明、只读接口和控制台展示，但不评估请求、不阻止或允许工具、不写执行轨迹、不生成 lessons。
+
+它面向插件/工具执行治理，不属于记忆写入、召回或证据链。旧文档把它描述成“保护人类真实记忆”的记忆层是不准确的。
+
+处理：从本记忆架构和路线图移除，单独放入工具治理文档。
+
+### 15.3 Dream / 月度整合
+
+**状态：未实现，当前不计划。**
+
+仓库里没有凌晨定时 consolidation、矛盾消解、模式提炼或月度记忆重写任务。角色包里的 `dreaming` skill 是可选的日记/叙事技能，不是后台记忆整合器。
+
+处理：从当前路线图移除。
+
+### 15.4 时间线 / 关系图谱
+
+**状态：底座部分存在，可视化未实现，未排期。**
+
+- 时间浏览：`memory_recent` 等工具已存在；
+- 关系底座：关系表、建议箱、人审和关系列表已存在；
+- 未实现：前端记忆时间线、节点—边图谱交互。
+
+处理：不把底座说成零，也不把底座说成 UI 已完成。
+
+### 15.5 情绪调节浮现
+
+**状态：已实现但默认关闭，并且入口不统一。**
+
+同一次副模型观察已能产出 scope 与当前情绪极性；主动浮现已能识别候选的情绪暗流并做同频加权。它不进入主搜索，Discord 与工具链当前没有有效输入。
+
+处理：从“未来设想”移入“灰度召回增强”。
+
+---
+
+## 16. 模块地图
+
+### 16.1 核心服务
+
+| 模块 | 职责 |
+|---|---|
+| `services/memory-records.js` | 记忆 CRUD、状态、关系、合并和所有权 |
+| `tools/memory.js` | `memory_save` 与长期写入 |
+| `tools/memory-search.js` | Hybrid/Blended/contextual 主召回、置顶、证据附着 |
+| `services/memory-surfacing.js` | Lite/Full 浮现、scope、hint、情绪暗流和多样性 |
+| `services/memory-injection-format.js` | 主召回、浮现与证据的注入格式 |
+| `services/phase2-extractor.js` | Phase 2 结构化元数据提取 |
+| `services/persona-distiller.js` | `user-persona.md` 四层画像蒸馏 |
+| `services/turn-snapshot.js` | 蒸馏纪快照 |
+| `services/memory-group-embeddings.js` | Qwen3 组级影子向量 |
+| `services/memory-hint-embeddings.js` | recall hints 影子向量 |
+| `services/memory-scope-cooccurrence.js` | scope 共现快照 |
+| `services/source-context.js` | 对话出生证 |
+| `services/source-chunks.js` | 文档片段证据 |
+| `services/evidence-quote.js` | 逐字引用验证 |
+| `services/memory-link-suggestions.js` | 关系建议与人审 |
+
+### 16.2 路由与界面
+
+| 模块 | 职责 |
+|---|---|
+| `routes/ai.js` | 聊天主链、意图观察、召回、注入、Phase 2、蒸馏纪 |
+| `routes/memory-index.js` | 记忆列表、搜索、编辑、关系与合并 API |
+| `routes/memory-staging.js` | 待审核批准/拒绝 |
+| `routes/memory-chain.js` | 对话链和小总结 |
+| `routes/obsidian-docs.js` | Obsidian 文档索引 |
+| `memory-desk.js` | 记忆工作台 |
+| `turn-transparency.js` | 蒸馏纪界面 |
+
+---
+
+## 17. 已知边界
+
+当前仍需要明确保留的边界：
+
+1. Scope 与情绪只增强主动浮现，不进入主搜索。
+2. PWA 默认把意图分类、评分 v2 和主动浮现关掉；“代码上线”不等于“每轮生效”。
+3. Discord 没有接通副模型 scope/价态输入。
+4. 原生 Agent 的公开搜索工具没有 scope/当前价态参数。
+5. Phase 2 persona 已实现，但未配置时仍默认 legacy。
+6. v3 live 的额外动态注入还需要独立恢复开关。
+7. 时间浏览和关系数据已有底座，但没有专用时间线/图谱 UI。
+8. Enso、Dream 整合和记忆软化不属于当前记忆主线。
+9. 线上开关状态必须用生产配置与真实请求轨迹另行证明，不能从代码存在反推。
+
+---
+
+## 18. 验证口径
+
+架构文档不再保存“某次机器有多少组记忆”“某个文件有多少 KB”这类会快速过期的数字。
+
+验证分三层：
+
+1. **静态追链**：从入口一直追到存储、召回、注入和输出；
+2. **专项回归**：scope、浮现、状态、画像、蒸馏纪、时间浏览等分别实跑；
+3. **生产证明**：需要部署环境开关、真实请求轨迹与前端请求值，不能由本地 smoke 代替。
+
+截至 2026-07-19，本次重写已核实：
+
+- scope、整库冷候选与情绪同频的专项回归通过；
+- 时间浏览工具专项回归通过；
+- Enso 边界检查确认其仍为不可执行声明态；
+- 热度代码只改变召回排序，没有正文软化链；
+- 文档不把本地代码通过误写成生产环境已经打开；
+- Phase 2、蒸馏纪、记忆状态和主动浮现共 382 条显式断言通过；访问衰减另有一条过时的静态计数检查失败，实际调用链未漏接，因此本次没有把“全套测试全绿”写进结论。
+
+---
+
+> **当前主线总结：** AZOTH 已经形成“输入材料 → 分层蒸馏 → 长期存储 → 主召回/主动浮现 → 证据回牵 → 分区注入 → 蒸馏纪 → 人工整理”的完整记忆闭环。下一步若继续建设，应优先补齐入口一致性和灰度可观测性，而不是把 Enso、Dream 或记忆软化重新塞回记忆路线图。
